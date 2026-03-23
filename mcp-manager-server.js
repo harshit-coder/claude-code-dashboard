@@ -2415,9 +2415,14 @@ function fetchMcpTools(config) {
   });
 }
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`\n  MCP Server Manager running at:\n`);
-  console.log(`  → http://localhost:${PORT}\n`);
-  console.log(`  Config: ${CLAUDE_JSON_PATH}`);
-  console.log(`  Press Ctrl+C to stop\n`);
-});
+// When required by Electron, export the server instead of auto-listening
+if (require.main === module) {
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`\n  MCP Server Manager running at:\n`);
+    console.log(`  → http://localhost:${PORT}\n`);
+    console.log(`  Config: ${CLAUDE_JSON_PATH}`);
+    console.log(`  Press Ctrl+C to stop\n`);
+  });
+}
+
+module.exports = { server, PORT };

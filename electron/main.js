@@ -31,81 +31,37 @@ process.on('unhandledRejection', (err) => {
 // ── Server Management ────────────────────────────────────────────────
 function startServer() {
   return new Promise((resolve, reject) => {
-    const serverScript = path.join(__dirname, '..', 'mcp-manager-server.js');
+    try {
+      process.env.ELECTRON_MODE = '1';
+      const serverModule = require(path.join(__dirname, '..', 'mcp-manager-server.js'));
+      const { server, PORT } = serverModule;
+      serverPort = PORT;
 
-    // Use environment variable to pass port; server defaults to 3456
-    const env = { ...process.env, ELECTRON_MODE: '1' };
+      server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          reject(new Error('EADDRINUSE'));
+        } else {
+          reject(err);
+        }
+      });
 
-    // Use 'node' from PATH, not process.execPath (which is Electron's binary)
-    const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
-
-    serverProcess = spawn(nodeCmd, [serverScript], {
-      env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: path.join(__dirname, '..'),
-      shell: false,
-    });
-
-    // Prevent EPIPE crashes on broken pipes during shutdown
-    serverProcess.stdin.on('error', () => {});
-    serverProcess.stdout.on('error', () => {});
-    serverProcess.stderr.on('error', () => {});
-
-    let started = false;
-    let outputBuffer = '';
-
-    serverProcess.stdout.on('data', (data) => {
-      const msg = data.toString();
-      outputBuffer += msg;
-      console.log('[Server]', msg.trim());
-      if (!started && (outputBuffer.includes('running at') || outputBuffer.includes('localhost:'))) {
-        started = true;
-        const match = outputBuffer.match(/localhost:(\d+)/);
-        if (match) serverPort = parseInt(match[1], 10);
-        resolve(serverPort);
-      }
-    });
-
-    serverProcess.stderr.on('data', (data) => {
-      const msg = data.toString();
-      console.error('[Server Error]', msg);
-      if (!started && msg.includes('EADDRINUSE')) {
-        started = true;
-        reject(new Error('EADDRINUSE'));
-      }
-    });
-
-    serverProcess.on('error', (err) => {
-      console.error('[Server Spawn Error]', err);
-      if (!started) reject(err);
-    });
-
-    serverProcess.on('exit', (code) => {
-      console.log(`[Server] exited with code ${code}`);
-      if (!started) reject(new Error(`Server exited with code ${code}`));
-    });
-
-    // Timeout fallback — if server doesn't print ready message in 5s
-    setTimeout(() => {
-      if (!started) {
-        started = true;
-        console.log('[Electron] Server timeout — proceeding with default port', serverPort);
-        resolve(serverPort);
-      }
-    }, 5000);
+      server.listen(PORT, '127.0.0.1', () => {
+        console.log(`[Server] MCP Server Manager running at http://localhost:${PORT}`);
+        serverProcess = server;
+        resolve(PORT);
+      });
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
 function killServer() {
-  if (serverProcess && !serverProcess.killed) {
-    // Detach pipe listeners before killing to prevent EPIPE errors
-    serverProcess.stdout.removeAllListeners('data');
-    serverProcess.stderr.removeAllListeners('data');
-    serverProcess.stdin.end();
+  if (serverProcess) {
     try {
-      serverProcess.kill('SIGTERM');
+      serverProcess.close();
     } catch (_) {
-      // Ignore errors if process already exited
+      // Ignore errors if server already closed
     }
     serverProcess = null;
   }
