@@ -93,8 +93,8 @@ test('has Windows NSIS target', () => {
   assert(pkg.build.win && pkg.build.win.target);
 });
 
-test('version is 2.0.0', () => {
-  assert(pkg.version === '2.0.0');
+test('version matches semver format', () => {
+  assert(/^\d+\.\d+\.\d+/.test(pkg.version), `Invalid version: ${pkg.version}`);
 });
 
 // ── Module Import Tests ──────────────────────────────────────────

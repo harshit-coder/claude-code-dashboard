@@ -1,5 +1,5 @@
 // Claude Code Dashboard — Electron Main Process
-const { app, BrowserWindow, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, nativeImage, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const { setupTray } = require('./tray');
@@ -67,7 +67,12 @@ function startServer() {
     });
 
     serverProcess.stderr.on('data', (data) => {
-      console.error('[Server Error]', data.toString());
+      const msg = data.toString();
+      console.error('[Server Error]', msg);
+      if (!started && msg.includes('EADDRINUSE')) {
+        started = true;
+        reject(new Error('EADDRINUSE'));
+      }
     });
 
     serverProcess.on('error', (err) => {
@@ -323,6 +328,21 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[Electron] Failed to start:', err);
     killServer();
+
+    if (err.message === 'EADDRINUSE') {
+      dialog.showErrorBox(
+        'Port Already in Use',
+        `Port ${serverPort} is already in use by another process.\n\n` +
+        'Another instance of Claude Code Dashboard (or another app) may be running.\n\n' +
+        'Please close it and try again, or check Task Manager for "node.exe" processes.'
+      );
+    } else {
+      dialog.showErrorBox(
+        'Failed to Start',
+        `Claude Code Dashboard failed to start:\n\n${err.message}`
+      );
+    }
+
     app.quit();
   }
 });
