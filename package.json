@@ -33,9 +33,10 @@
   ],
   "author": "Harshit Kalucha",
   "license": "MIT",
+  "homepage": "https://github.com/harshit-coder/claude-code-dashboard",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/harshit-coder/claude-code-dashboard.git"
   },
   "engines": {
     "node": ">=16.0.0"

@@ -20,23 +20,21 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Python (for node-pty)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: npm install --ignore-scripts && node scripts/copy-vendor.js
+        run: npm install
 
       - name: Run structural tests
         run: node test-electron.js
 
       - name: Build Windows
         run: npx electron-builder --win --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Windows artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-builds
@@ -54,18 +52,21 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm install --ignore-scripts && node scripts/copy-vendor.js
+        run: npm install
 
       - name: Run structural tests
         run: node test-electron.js
 
       - name: Build Linux
         run: npx electron-builder --linux --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Linux artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-builds
@@ -84,18 +85,21 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm install --ignore-scripts && node scripts/copy-vendor.js
+        run: npm install
 
       - name: Run structural tests
         run: node test-electron.js
 
       - name: Build macOS
         run: npx electron-builder --mac --publish never
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload macOS artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-builds
