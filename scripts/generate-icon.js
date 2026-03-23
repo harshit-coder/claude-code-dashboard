@@ -68,7 +68,7 @@ function createPNG(width, height, pixels) {
 }
 
 // Draw the icon
-const SIZE = 256;
+const SIZE = 512;
 const pixels = Buffer.alloc(SIZE * SIZE * 4);
 
 // Colors

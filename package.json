@@ -31,7 +31,10 @@
     "desktop-app",
     "electron"
   ],
-  "author": "Harshit Kalucha",
+  "author": {
+    "name": "Harshit Kalucha",
+    "email": "harshit@claude-code-dashboard.dev"
+  },
   "license": "MIT",
   "homepage": "https://github.com/harshit-coder/claude-code-dashboard",
   "repository": {
