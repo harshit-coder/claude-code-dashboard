@@ -82,7 +82,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Claude Code Dashboard"
+      "shortcutName": "Claude Code Dashboard",
+      "include": "build/uninstaller.nsh"
     },
     "mac": {
       "target": [
