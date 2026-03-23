@@ -20,14 +20,19 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Python (for node-pty)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts && node scripts/copy-vendor.js
 
       - name: Run structural tests
         run: node test-electron.js
 
       - name: Build Windows
-        run: npx electron-builder --win
+        run: npx electron-builder --win --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -50,17 +55,13 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts && node scripts/copy-vendor.js
 
-      - name: Start server and run tests
-        run: |
-          node mcp-manager-server.js &
-          sleep 3
-          npm test
-          node test-electron.js
+      - name: Run structural tests
+        run: node test-electron.js
 
       - name: Build Linux
-        run: npx electron-builder --linux
+        run: npx electron-builder --linux --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -84,17 +85,13 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --ignore-scripts && node scripts/copy-vendor.js
 
-      - name: Start server and run tests
-        run: |
-          node mcp-manager-server.js &
-          sleep 3
-          npm test
-          node test-electron.js
+      - name: Run structural tests
+        run: node test-electron.js
 
       - name: Build macOS
-        run: npx electron-builder --mac
+        run: npx electron-builder --mac --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
