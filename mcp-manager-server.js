@@ -1793,7 +1793,8 @@ const server = http.createServer((req, res) => {
         if (!config.command) continue;
         const cmd = config.command.replace('.cmd', '').replace('.exe', '');
         try {
-          execSync(`where ${cmd} 2>&1`, { encoding: 'utf8', timeout: 3000 });
+          const whichCmd = process.platform === 'win32' ? 'where' : 'which';
+          execSync(`${whichCmd} ${cmd} 2>&1`, { encoding: 'utf8', timeout: 3000 });
           issues.push({ check: `${name}: command "${config.command}"`, status: 'pass', detail: 'Found on PATH' });
         } catch (_) {
           if (['npx', 'uvx', 'node', 'bun'].includes(cmd)) {
