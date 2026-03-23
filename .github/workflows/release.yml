@@ -23,11 +23,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
-      - name: Run Electron tests
-        run: node test-electron.js
+      - name: Start server and run tests
+        shell: bash
+        run: |
+          node mcp-manager-server.js &
+          sleep 3
+          npm test
+          node test-electron.js
 
       - name: Build Windows
         run: npx electron-builder --win
@@ -55,8 +57,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Start server and run tests
+        run: |
+          node mcp-manager-server.js &
+          sleep 3
+          npm test
+          node test-electron.js
 
       - name: Build Linux
         run: npx electron-builder --linux
@@ -85,8 +91,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Start server and run tests
+        run: |
+          node mcp-manager-server.js &
+          sleep 3
+          npm test
+          node test-electron.js
 
       - name: Build macOS
         run: npx electron-builder --mac
