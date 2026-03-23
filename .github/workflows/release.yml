@@ -32,7 +32,9 @@ jobs:
         run: node test-electron.js
 
       - name: Build Windows
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -64,7 +66,9 @@ jobs:
         run: node test-electron.js
 
       - name: Build Linux
-        run: npx electron-builder --linux --publish never
+        run: npx electron-builder --linux --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -97,7 +101,9 @@ jobs:
         run: node test-electron.js
 
       - name: Build macOS
-        run: npx electron-builder --mac --publish never
+        run: npx electron-builder --mac --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

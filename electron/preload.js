@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (enabled) => ipcRenderer.invoke('app:setAutoStart', enabled),
   getAutoStart: () => ipcRenderer.invoke('app:getAutoStart'),
 
+  // ── Updates ─────────────────────────────────────────────────────
+  checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+
   // ── Terminal ─────────────────────────────────────────────────────
   createTerminal: (opts) => ipcRenderer.invoke('terminal:create', opts),
   writeTerminal: (id, data) => ipcRenderer.send('terminal:write', id, data),

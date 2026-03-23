@@ -7,6 +7,7 @@ const { setupTerminalManager } = require('./terminal-manager');
 const { setupFileWatcher } = require('./file-watcher');
 const { setupNotifications } = require('./notifications');
 const { setupAgentRunner } = require('./agent-runner');
+const { setupUpdater, checkForUpdates } = require('./updater');
 
 // ── Globals ──────────────────────────────────────────────────────────
 let mainWindow = null;
@@ -159,6 +160,15 @@ app.whenReady().then(async () => {
 
     // Setup background agent runner
     setupAgentRunner(ipcMain, win);
+
+    // Setup auto-updater
+    setupUpdater(app, win);
+
+    // IPC: check for updates manually
+    ipcMain.handle('app:checkForUpdates', () => {
+      checkForUpdates();
+      return { status: 'checking' };
+    });
 
     // IPC: get server port
     ipcMain.handle('app:getPort', () => serverPort);
