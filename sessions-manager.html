@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sessions Browser</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 16px;
+}
+
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header h1 .icon {
+  font-size: 1.4rem;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 32px 20px;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 220px;
+  max-width: 400px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-box:focus {
+  border-color: var(--accent);
+}
+
+.search-box::placeholder {
+  color: var(--text-dim);
+}
+
+.project-filter {
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.project-filter:focus {
+  border-color: var(--accent);
+}
+
+.project-filter option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.stats {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.stats strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.table-wrap {
+  padding: 0 32px 32px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+thead th {
+  background: var(--surface2);
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  transition: color 0.2s;
+}
+
+thead th:hover {
+  color: var(--accent);
+}
+
+thead th.sorted-asc::after {
+  content: ' \u25B2';
+  font-size: 0.65rem;
+}
+
+thead th.sorted-desc::after {
+  content: ' \u25BC';
+  font-size: 0.65rem;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+tbody tr:last-child {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background: var(--surface2);
+}
+
+td {
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+
+td.date-col {
+  white-space: nowrap;
+  color: var(--text-dim);
+  min-width: 160px;
+}
+
+td.project-col {
+  font-weight: 500;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+td.session-col {
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+td.messages-col {
+  text-align: right;
+  font-weight: 500;
+}
+
+td.size-col {
+  text-align: right;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+td.topic-col {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-messages {
+  background: rgba(108, 92, 231, 0.15);
+  color: var(--accent);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+.empty-state .empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.error-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--red);
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.nav-bar {
+  padding: 0 32px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128172;</span> Sessions Browser</h1>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('sessions')</script>
+
+<div class="controls">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search by project name...">
+  <select class="project-filter" id="projectFilter">
+    <option value="">All Projects</option>
+  </select>
+  <div class="stats" id="statsBar">Loading...</div>
+</div>
+
+<div class="table-wrap">
+  <div id="tableContainer">
+    <div class="loading">Loading sessions</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  let allSessions = [];
+  let sortCol = 'modified';
+  let sortDir = 'desc';
+
+  const searchBox = document.getElementById('searchBox');
+  const projectFilter = document.getElementById('projectFilter');
+  const statsBar = document.getElementById('statsBar');
+  const tableContainer = document.getElementById('tableContainer');
+
+  function formatDate(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr || '—';
+    const now = new Date();
+    const diff = now - d;
+    const days = Math.floor(diff / 86400000);
+    const opts = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+    if (days === 0) {
+      const hrs = Math.floor(diff / 3600000);
+      if (hrs === 0) {
+        const mins = Math.floor(diff / 60000);
+        return mins <= 1 ? 'Just now' : mins + ' min ago';
+      }
+      return hrs + 'h ago';
+    }
+    if (days === 1) return 'Yesterday ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString(undefined, opts);
+  }
+
+  function formatSize(bytes) {
+    if (bytes == null || isNaN(bytes)) return '—';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function getFilteredSessions() {
+    const query = searchBox.value.toLowerCase().trim();
+    const proj = projectFilter.value;
+    return allSessions.filter(s => {
+      if (proj && s.project !== proj) return false;
+      if (query && !(s.project || '').toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }
+
+  function getSortVal(s, col) {
+    switch(col) {
+      case 'modified': return new Date(s.modified).getTime() || 0;
+      case 'project': return (s.project || '').toLowerCase();
+      case 'topic': return (s.topic || '').toLowerCase();
+      case 'sessionId': return (s.sessionId || '').toLowerCase();
+      case 'messages': return s.messages || 0;
+      case 'size': return s.size || 0;
+      default: return '';
+    }
+  }
+
+  function sortSessions(sessions) {
+    return sessions.slice().sort((a, b) => {
+      let va = getSortVal(a, sortCol);
+      let vb = getSortVal(b, sortCol);
+      let cmp = 0;
+      if (typeof va === 'string') cmp = va.localeCompare(vb);
+      else cmp = va - vb;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  function render() {
+    const filtered = sortSessions(getFilteredSessions());
+    statsBar.innerHTML = 'Showing <strong>' + filtered.length + '</strong> of <strong>' + allSessions.length + '</strong> sessions';
+
+    if (filtered.length === 0) {
+      tableContainer.innerHTML = '<div class="empty-state"><span class="empty-icon">&#128269;</span>No sessions found</div>';
+      return;
+    }
+
+    const cols = [
+      { key: 'modified', label: 'Date' },
+      { key: 'project', label: 'Project' },
+      { key: 'topic', label: 'Topic' },
+      { key: 'sessionId', label: 'Session ID' },
+      { key: 'messages', label: 'Messages' },
+      { key: 'size', label: 'Size' }
+    ];
+
+    let html = '<table><thead><tr>';
+    cols.forEach(c => {
+      let cls = '';
+      if (sortCol === c.key) cls = sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc';
+      html += '<th class="' + cls + '" data-col="' + c.key + '">' + c.label + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    filtered.forEach(s => {
+      const topicRaw = s.topic || '';
+      const topicDisplay = topicRaw.length > 60 ? topicRaw.substring(0, 60) + '...' : topicRaw;
+      const pKey = (s.projectKey || s.project || '').replace(/"/g, '&quot;');
+      const sId = (s.sessionId || '').replace(/"/g, '&quot;');
+      html += '<tr data-project-key="' + pKey + '" data-session-id="' + sId + '">';
+      html += '<td class="date-col">' + formatDate(s.modified) + '</td>';
+      html += '<td class="project-col" title="' + (s.project || '').replace(/"/g, '&quot;') + '">' + (s.project || '<em style="color:var(--text-dim)">unknown</em>') + '</td>';
+      html += '<td class="topic-col" title="' + topicRaw.replace(/"/g, '&quot;') + '">' + (topicDisplay || '<em style="color:var(--text-dim)">—</em>') + '</td>';
+      html += '<td class="session-col" title="' + (s.sessionId || '') + '">' + (s.sessionId || '—') + '</td>';
+      html += '<td class="messages-col"><span class="badge badge-messages">' + (s.messages != null ? s.messages : '—') + '</span></td>';
+      html += '<td class="size-col">' + formatSize(s.size) + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    tableContainer.innerHTML = html;
+
+    tableContainer.querySelectorAll('thead th').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        else { sortCol = col; sortDir = col === 'modified' || col === 'messages' || col === 'size' ? 'desc' : 'asc'; }
+        render();
+      });
+    });
+
+    tableContainer.querySelectorAll('tbody tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const pk = tr.dataset.projectKey;
+        const sid = tr.dataset.sessionId;
+        if (pk && sid) {
+          window.location = '/conversations?project=' + encodeURIComponent(pk) + '&id=' + encodeURIComponent(sid);
+        }
+      });
+    });
+  }
+
+  function populateProjects() {
+    const projects = [...new Set(allSessions.map(s => s.project).filter(Boolean))].sort();
+    projectFilter.innerHTML = '<option value="">All Projects (' + projects.length + ')</option>';
+    projects.forEach(p => {
+      const count = allSessions.filter(s => s.project === p).length;
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p + ' (' + count + ')';
+      projectFilter.appendChild(opt);
+    });
+  }
+
+  searchBox.addEventListener('input', render);
+  projectFilter.addEventListener('change', render);
+
+  fetch('http://localhost:3456/api/sessions')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      allSessions = data.sessions || [];
+      populateProjects();
+      render();
+    })
+    .catch(err => {
+      tableContainer.innerHTML = '<div class="error-state">Failed to load sessions: ' + err.message + '</div>';
+      statsBar.textContent = 'Error loading data';
+    });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,973 @@
+<!--
+  =============================================================================
+  MCP Tools Manager — UI
+  =============================================================================
+  PURPOSE:
+    Web UI to browse, search, and manage tools from all MCP servers.
+    Shows tools per server, allows enabling/disabling individual tools.
+
+  HOW TO USE:
+    Start the server:  node mcp-manager-server.js
+    Open http://localhost:3456/tools in your browser.
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Tools Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --green-dim: #1a3a32;
+    --red: #e74c3c;
+    --red-dim: #3a1a1a;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header h1 .icon { font-size: 24px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); background: var(--surface); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-save { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn-save:hover { opacity: 0.9; }
+  .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .unsaved-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--orange); display: none;
+  }
+  .unsaved-dot.show { display: inline-block; }
+
+  /* Search & filters */
+  .toolbar {
+    padding: 16px 32px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 250px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .stats {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 0 32px 8px;
+  }
+
+  /* Server sections */
+  .content { padding: 0 32px 32px; }
+
+  .server-section {
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .server-section.disabled-server { opacity: 0.6; }
+
+  .server-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .server-header:hover { background: var(--surface2); }
+
+  .server-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .server-name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .server-badge {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+  .badge-enabled { background: var(--green-dim); color: var(--green); }
+  .badge-disabled { background: var(--red-dim); color: var(--red); }
+  .badge-count {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 12px;
+  }
+  .badge-tokens {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+  .badge-tokens.token-green { background: rgba(0,184,148,0.15); color: var(--green); }
+  .badge-tokens.token-orange { background: rgba(243,156,18,0.15); color: var(--orange); }
+  .badge-tokens.token-red { background: rgba(231,76,60,0.15); color: var(--red); }
+
+  .server-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .chevron {
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    font-size: 14px;
+  }
+  .chevron.open { transform: rotate(90deg); }
+
+  .fetch-btn {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .fetch-btn:hover { border-color: var(--accent); color: var(--text); }
+  .fetch-btn.loading { opacity: 0.5; cursor: wait; }
+
+  /* Tools list */
+  .tools-container {
+    display: none;
+    border-top: 1px solid var(--border);
+  }
+  .tools-container.open { display: block; }
+
+  .tool-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+    gap: 12px;
+  }
+  .tool-row:last-child { border-bottom: none; }
+  .tool-row:hover { background: var(--surface2); }
+  .tool-row.disabled-tool { opacity: 0.45; }
+
+  .tool-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--text-dim);
+  }
+
+  .tool-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .tool-name {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    color: var(--text);
+    word-break: break-all;
+  }
+  .tool-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Toggle switch */
+  .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle input { display: none; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    left: 2px; top: 2px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--green); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+  /* Notes & tags indicators */
+  .tool-note-icon {
+    font-size: 12px;
+    color: var(--orange);
+    flex-shrink: 0;
+    cursor: pointer;
+    title: 'Has notes';
+  }
+  .tool-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 3px;
+  }
+  .tool-tag {
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .tool-custom-desc {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 2px;
+    font-style: italic;
+  }
+
+  /* Empty / loading states */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-dim);
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .loading-spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .not-fetched {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 9999;
+    transition: transform 0.25s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* Fetch all progress */
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-bar.active { display: block; }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* Tool detail modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 560px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal h2 {
+    font-size: 16px;
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+  .modal-field {
+    margin-bottom: 14px;
+  }
+  .modal-field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .modal-field .value {
+    font-size: 13px;
+    background: var(--surface2);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    word-break: break-all;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128295;</span> MCP Tools Manager <span class="unsaved-dot" id="unsavedDot"></span></h1>
+  <div class="header-actions">
+    <button class="btn btn-primary" id="fetchAllBtn" onclick="fetchAllTools()">&#128259; Fetch All Tools</button>
+    <button class="btn btn-save" id="saveBtn" onclick="saveChanges()" disabled>&#128190; Save Changes</button>
+  </div>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('tools')</script>
+
+<div class="progress-bar" id="progressBar">
+  <div class="progress-fill" id="progressFill"></div>
+</div>
+
+<div class="toolbar">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search tools by name or description..." oninput="applyFilters()">
+  <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+  <button class="filter-btn" data-filter="enabled" onclick="setFilter('enabled', this)">Enabled</button>
+  <button class="filter-btn" data-filter="disabled" onclick="setFilter('disabled', this)">Disabled</button>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="content" id="content">
+  <div class="empty-state">
+    <div class="icon">&#128295;</div>
+    <div>Loading servers...</div>
+  </div>
+</div>
+
+<!-- Tool detail modal -->
+<div class="modal-overlay" id="toolModal">
+  <div class="modal" style="width:640px">
+    <h2 id="toolModalTitle">Tool Details</h2>
+    <div class="modal-field">
+      <label>Server</label>
+      <div class="value" id="toolModalServer"></div>
+    </div>
+    <div class="modal-field">
+      <label>Tool Name</label>
+      <div class="value" id="toolModalName"></div>
+    </div>
+    <div class="modal-field">
+      <label>Original Description (from MCP server — read only)</label>
+      <div class="value" id="toolModalDesc" style="opacity:0.7"></div>
+    </div>
+    <div class="modal-field">
+      <label>Your Custom Notes (local only — persists across reinstalls)</label>
+      <textarea class="cm-editor" id="toolModalNotes" style="width:100%;min-height:100px;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:'Cascadia Code','Fira Code',monospace;outline:none;resize:vertical" placeholder="Add your notes about this tool...&#10;e.g. usage tips, gotchas, custom params..."></textarea>
+    </div>
+    <div class="modal-field">
+      <label>Custom Description Override (shown instead of original)</label>
+      <input type="text" id="toolModalCustomDesc" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;outline:none" placeholder="Leave empty to use original description">
+    </div>
+    <div class="modal-field">
+      <label>Tags</label>
+      <input type="text" id="toolModalTags" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;outline:none" placeholder="e.g. search, api, read-only (comma separated)">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeToolModal()">Cancel</button>
+      <button class="btn" style="background:var(--red-dim);border-color:var(--red);color:var(--red)" onclick="clearToolMeta()">Clear Notes</button>
+      <button class="btn" style="background:var(--green);border-color:var(--green);color:#fff" onclick="saveToolMeta()">Save Notes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = `http://localhost:${location.port || 3456}`;
+
+let configData = null;       // full .claude.json
+let settingsData = null;     // full settings.local.json
+let serversInfo = [];        // [{name, enabled, config}]
+let toolsCache = {};         // {serverName: {tools:[], count, error?}}
+let deniedTools = new Set();  // Set of "mcp__servername__toolname" strings
+let currentFilter = 'all';
+let hasUnsaved = false;
+let openSections = new Set();
+let toolMeta = {};  // {serverName__toolName: {notes, customDesc, tags}} — stored in localStorage
+
+// ── Tool Meta (localStorage) ──
+function loadToolMeta() {
+  try { toolMeta = JSON.parse(localStorage.getItem('claude-tool-meta') || '{}'); } catch (_) { toolMeta = {}; }
+}
+function saveToolMetaToStorage() {
+  localStorage.setItem('claude-tool-meta', JSON.stringify(toolMeta));
+}
+function getToolMetaKey(serverName, toolName) { return serverName + '__' + toolName; }
+function getToolMeta(serverName, toolName) { return toolMeta[getToolMetaKey(serverName, toolName)] || null; }
+
+// ── Init ──
+async function init() {
+  try {
+    const [configResp, settingsResp] = await Promise.all([
+      fetch(API_BASE + '/api/config'),
+      fetch(API_BASE + '/api/settings-local')
+    ]);
+    const configResult = await configResp.json();
+    const settingsResult = await settingsResp.json();
+    if (configResult.error) { toast(configResult.error, true); return; }
+    configData = configResult.data;
+    settingsData = settingsResult.data || {};
+    loadToolMeta();
+    parseServers();
+    parseDeniedTools();
+    render();
+  } catch (e) {
+    document.getElementById('content').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">&#9888;</div>
+        <div>Cannot connect to server at ${API_BASE}</div>
+        <div style="margin-top:8px;font-size:12px;color:var(--text-dim)">Run: node mcp-manager-server.js</div>
+      </div>`;
+  }
+}
+
+function parseServers() {
+  serversInfo = [];
+  // Servers from .claude.json (global config)
+  const enabled = configData.mcpServers || {};
+  const disabled = configData.disabledMcpServers || {};
+  // Servers from settings.local.json
+  const settingsEnabled = settingsData.mcpServers || {};
+  const settingsDisabled = settingsData.disabledMcpServers || {};
+
+  for (const [name, config] of Object.entries(enabled)) {
+    serversInfo.push({ name, enabled: true, config });
+  }
+  for (const [name, config] of Object.entries(disabled)) {
+    serversInfo.push({ name, enabled: false, config });
+  }
+  for (const [name, config] of Object.entries(settingsEnabled)) {
+    if (!serversInfo.find(s => s.name === name)) {
+      serversInfo.push({ name, enabled: true, config });
+    }
+  }
+  for (const [name, config] of Object.entries(settingsDisabled)) {
+    if (!serversInfo.find(s => s.name === name)) {
+      serversInfo.push({ name, enabled: false, config });
+    }
+  }
+  serversInfo.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function parseDeniedTools() {
+  deniedTools = new Set();
+  const deny = (settingsData.permissions && settingsData.permissions.deny) || [];
+  for (const entry of deny) {
+    // Only track mcp__ tool entries
+    if (entry.startsWith('mcp__')) {
+      deniedTools.add(entry);
+    }
+  }
+}
+
+// Convert server name + tool name to Claude Code deny format
+function toDenyKey(serverName, toolName) {
+  return `mcp__${serverName}__${toolName}`;
+}
+
+function isToolDenied(serverName, toolName) {
+  return deniedTools.has(toDenyKey(serverName, toolName));
+}
+
+// ── Token Impact ──
+function calcServerTokens(cached) {
+  if (!cached || !cached.tools) return 0;
+  let total = 0;
+  for (const tool of cached.tools) {
+    const nameLen = (tool.name || '').length;
+    const descLen = (tool.description || '').length;
+    const schemaLen = tool.schemaSize || 0;
+    total += (nameLen + descLen + schemaLen) / 4;
+  }
+  return total;
+}
+
+function tokenBadgeColor(tokens) {
+  if (tokens < 5000) return 'token-green';
+  if (tokens <= 20000) return 'token-orange';
+  return 'token-red';
+}
+
+function formatTokens(tokens) {
+  return '~' + Math.round(tokens / 1000) + 'K tokens';
+}
+
+// ── Render ──
+function render() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const container = document.getElementById('content');
+
+  if (serversInfo.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#128295;</div><div>No MCP servers found</div></div>';
+    updateStats(0, 0);
+    return;
+  }
+
+  let totalTools = 0;
+  let visibleTools = 0;
+  let html = '';
+
+  for (const server of serversInfo) {
+    const cached = toolsCache[server.name];
+    const isOpen = openSections.has(server.name);
+    // (denied tools checked per-tool via isToolDenied)
+
+    // Filter: server-level enabled/disabled
+    if (currentFilter === 'enabled' && !server.enabled) continue;
+    if (currentFilter === 'disabled' && server.enabled) continue;
+
+    let toolsHtml = '';
+    let serverToolCount = 0;
+    let serverDisabledCount = 0;
+
+    if (cached && cached.tools) {
+      for (const tool of cached.tools) {
+        const isToolDisabled = isToolDenied(server.name, tool.name);
+        totalTools++;
+
+        // Search filter (includes custom notes, tags, description)
+        if (search) {
+          const meta = getToolMeta(server.name, tool.name);
+          const haystack = (tool.name + ' ' + tool.description + ' ' + (meta ? (meta.notes || '') + ' ' + (meta.customDesc || '') + ' ' + (meta.tags || '') : '')).toLowerCase();
+          if (!haystack.includes(search)) continue;
+        }
+
+        visibleTools++;
+        serverToolCount++;
+        if (isToolDisabled) serverDisabledCount++;
+
+        const meta = getToolMeta(server.name, tool.name);
+        const hasNotes = meta && (meta.notes || meta.customDesc || meta.tags);
+        const displayDesc = (meta && meta.customDesc) ? meta.customDesc : tool.description;
+        const tags = (meta && meta.tags) ? meta.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+        toolsHtml += `
+          <div class="tool-row ${isToolDisabled ? 'disabled-tool' : ''}">
+            <div class="tool-icon">&#128296;</div>
+            <div class="tool-info" onclick="showToolDetail('${esc(server.name)}', '${esc(tool.name)}')" style="cursor:pointer">
+              <div class="tool-name">${esc(tool.name)}${hasNotes ? ' <span class="tool-note-icon" title="Has custom notes">&#128221;</span>' : ''}</div>
+              ${displayDesc ? `<div class="tool-desc">${esc(displayDesc)}</div>` : ''}
+              ${meta && meta.customDesc && tool.description ? `<div class="tool-custom-desc">original: ${esc(tool.description).slice(0, 80)}${tool.description.length > 80 ? '...' : ''}</div>` : ''}
+              ${tags.length > 0 ? `<div class="tool-tags">${tags.map(t => `<span class="tool-tag">${esc(t)}</span>`).join('')}</div>` : ''}
+            </div>
+            <label class="toggle" title="${isToolDisabled ? 'Enable tool' : 'Disable tool'}">
+              <input type="checkbox" ${isToolDisabled ? '' : 'checked'} onchange="toggleTool('${esc(server.name)}', '${esc(tool.name)}', this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>`;
+      }
+    }
+
+    // If searching and no matching tools in this server, skip it
+    if (search && serverToolCount === 0 && cached) continue;
+
+    const countLabel = cached
+      ? `${cached.count} tool${cached.count !== 1 ? 's' : ''}${serverDisabledCount > 0 ? ` (${serverDisabledCount} off)` : ''}`
+      : 'not fetched';
+
+    const serverTokens = calcServerTokens(cached);
+    const tokenBadge = cached && cached.tools && cached.tools.length > 0
+      ? `<span class="badge-tokens ${tokenBadgeColor(serverTokens)}">${formatTokens(serverTokens)}</span>`
+      : '';
+
+    html += `
+      <div class="server-section ${server.enabled ? '' : 'disabled-server'}">
+        <div class="server-header" onclick="toggleSection('${esc(server.name)}')">
+          <div class="server-info">
+            <span class="chevron ${isOpen ? 'open' : ''}">&#9654;</span>
+            <span class="server-name">${esc(server.name)}</span>
+            <span class="server-badge ${server.enabled ? 'badge-enabled' : 'badge-disabled'}">${server.enabled ? 'Enabled' : 'Disabled'}</span>
+            <span class="badge-count">${countLabel}</span>
+            ${tokenBadge}
+          </div>
+          <div class="server-right">
+            ${!cached ? `<button class="fetch-btn" onclick="event.stopPropagation(); fetchTools('${esc(server.name)}', this)">Fetch Tools</button>` : ''}
+          </div>
+        </div>
+        <div class="tools-container ${isOpen ? 'open' : ''}">
+          ${cached
+            ? (cached.error
+              ? `<div class="not-fetched" style="color:var(--red)">Error: ${esc(cached.error)}</div>`
+              : (cached.tools.length === 0
+                ? '<div class="not-fetched">No tools exposed by this server</div>'
+                : toolsHtml))
+            : '<div class="not-fetched">Click "Fetch Tools" to load tools from this server</div>'
+          }
+        </div>
+      </div>`;
+  }
+
+  container.innerHTML = html || '<div class="empty-state"><div class="icon">&#128269;</div><div>No matching tools found</div></div>';
+  updateStats(totalTools, visibleTools);
+}
+
+function updateStats(total, visible) {
+  const fetched = Object.keys(toolsCache).length;
+  const statsEl = document.getElementById('stats');
+  let text = `${serversInfo.length} servers`;
+  if (fetched > 0) text += ` &middot; ${total} tools loaded`;
+  if (visible !== total && total > 0) text += ` &middot; ${visible} shown`;
+  // Total MCP token overhead
+  let totalTokens = 0;
+  for (const cached of Object.values(toolsCache)) {
+    totalTokens += calcServerTokens(cached);
+  }
+  if (totalTokens > 0) {
+    text += ` &middot; MCP token overhead: ${formatTokens(totalTokens)}`;
+  }
+  statsEl.innerHTML = text;
+}
+
+// ── Actions ──
+function toggleSection(name) {
+  if (openSections.has(name)) {
+    openSections.delete(name);
+  } else {
+    openSections.add(name);
+    // Auto-fetch if not cached
+    if (!toolsCache[name]) {
+      const btn = document.querySelector(`.server-section .fetch-btn`);
+      fetchTools(name, btn);
+    }
+  }
+  render();
+}
+
+async function fetchTools(name, btnEl) {
+  if (btnEl) { btnEl.classList.add('loading'); btnEl.textContent = 'Fetching...'; }
+  try {
+    const resp = await fetch(API_BASE + '/api/tools?name=' + encodeURIComponent(name));
+    const result = await resp.json();
+    if (result.error) {
+      toolsCache[name] = { tools: [], count: 0, error: result.error };
+      toast(`${name}: ${result.error}`, true);
+    } else {
+      toolsCache[name] = { tools: result.tools, count: result.count };
+      toast(`${name}: ${result.count} tools found`);
+    }
+  } catch (e) {
+    toolsCache[name] = { tools: [], count: 0, error: e.message };
+    toast(`${name}: fetch failed`, true);
+  }
+  openSections.add(name);
+  render();
+}
+
+async function fetchAllTools() {
+  const btn = document.getElementById('fetchAllBtn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching...';
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  bar.classList.add('active');
+
+  const servers = serversInfo.filter(s => s.enabled && !toolsCache[s.name]);
+  let done = 0;
+
+  for (const s of servers) {
+    fill.style.width = `${((done + 0.5) / servers.length) * 100}%`;
+    try {
+      const resp = await fetch(API_BASE + '/api/tools?name=' + encodeURIComponent(s.name));
+      const result = await resp.json();
+      if (result.error) {
+        toolsCache[s.name] = { tools: [], count: 0, error: result.error };
+      } else {
+        toolsCache[s.name] = { tools: result.tools, count: result.count };
+      }
+    } catch (e) {
+      toolsCache[s.name] = { tools: [], count: 0, error: e.message };
+    }
+    done++;
+    fill.style.width = `${(done / servers.length) * 100}%`;
+    render();
+  }
+
+  const total = Object.values(toolsCache).reduce((s, c) => s + c.count, 0);
+  toast(`Done! ${total} tools from ${Object.keys(toolsCache).length} servers`);
+
+  btn.disabled = false;
+  btn.innerHTML = '&#128259; Fetch All Tools';
+  setTimeout(() => { bar.classList.remove('active'); fill.style.width = '0%'; }, 500);
+}
+
+function toggleTool(serverName, toolName, enabled) {
+  const key = toDenyKey(serverName, toolName);
+  if (enabled) {
+    deniedTools.delete(key);
+  } else {
+    deniedTools.add(key);
+  }
+  markUnsaved();
+  render();
+}
+
+function markUnsaved() {
+  hasUnsaved = true;
+  document.getElementById('saveBtn').disabled = false;
+  document.getElementById('unsavedDot').classList.add('show');
+}
+
+async function saveChanges() {
+  // Build the deny array: keep non-mcp entries, replace mcp__ entries with current deniedTools
+  if (!settingsData.permissions) settingsData.permissions = {};
+  const existingDeny = (settingsData.permissions.deny || []).filter(e => !e.startsWith('mcp__'));
+  settingsData.permissions.deny = [...existingDeny, ...Array.from(deniedTools).sort()];
+
+  // Clean up: remove empty deny array
+  if (settingsData.permissions.deny.length === 0) {
+    delete settingsData.permissions.deny;
+    if (Object.keys(settingsData.permissions).length === 0) {
+      delete settingsData.permissions;
+    }
+  }
+
+  try {
+    const resp = await fetch(API_BASE + '/api/settings-local', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settingsData)
+    });
+    const result = await resp.json();
+    if (result.error) { toast(result.error, true); return; }
+    hasUnsaved = false;
+    document.getElementById('saveBtn').disabled = true;
+    document.getElementById('unsavedDot').classList.remove('show');
+    toast('Saved to settings.local.json — changes take effect in next Claude session');
+  } catch (e) {
+    toast('Save failed: ' + e.message, true);
+  }
+}
+
+function setFilter(filter, btnEl) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btnEl.classList.add('active');
+  render();
+}
+
+function applyFilters() { render(); }
+
+// ── Tool detail modal ──
+let currentModalServer = '';
+let currentModalTool = '';
+
+function showToolDetail(serverName, toolName) {
+  const cached = toolsCache[serverName];
+  if (!cached) return;
+  const tool = cached.tools.find(t => t.name === toolName);
+  if (!tool) return;
+
+  currentModalServer = serverName;
+  currentModalTool = toolName;
+
+  document.getElementById('toolModalTitle').textContent = serverName + ' / ' + toolName;
+  document.getElementById('toolModalServer').textContent = serverName;
+  document.getElementById('toolModalName').textContent = tool.name;
+  document.getElementById('toolModalDesc').textContent = tool.description || '(no description)';
+
+  // Load existing meta
+  const meta = getToolMeta(serverName, toolName);
+  document.getElementById('toolModalNotes').value = meta ? (meta.notes || '') : '';
+  document.getElementById('toolModalCustomDesc').value = meta ? (meta.customDesc || '') : '';
+  document.getElementById('toolModalTags').value = meta ? (meta.tags || '') : '';
+
+  document.getElementById('toolModal').classList.add('active');
+}
+
+function saveToolMeta() {
+  const key = getToolMetaKey(currentModalServer, currentModalTool);
+  const notes = document.getElementById('toolModalNotes').value.trim();
+  const customDesc = document.getElementById('toolModalCustomDesc').value.trim();
+  const tags = document.getElementById('toolModalTags').value.trim();
+
+  if (!notes && !customDesc && !tags) {
+    delete toolMeta[key];
+  } else {
+    toolMeta[key] = {};
+    if (notes) toolMeta[key].notes = notes;
+    if (customDesc) toolMeta[key].customDesc = customDesc;
+    if (tags) toolMeta[key].tags = tags;
+  }
+
+  saveToolMetaToStorage();
+  render();
+  closeToolModal();
+  toast('Notes saved locally');
+}
+
+function clearToolMeta() {
+  const key = getToolMetaKey(currentModalServer, currentModalTool);
+  delete toolMeta[key];
+  saveToolMetaToStorage();
+  document.getElementById('toolModalNotes').value = '';
+  document.getElementById('toolModalCustomDesc').value = '';
+  document.getElementById('toolModalTags').value = '';
+  render();
+  toast('Notes cleared');
+}
+
+function closeToolModal() {
+  document.getElementById('toolModal').classList.remove('active');
+}
+
+// ── Helpers ──
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => el.className = 'toast', 3000);
+}
+
+// Close modal on backdrop click
+document.getElementById('toolModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeToolModal();
+});
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeToolModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (hasUnsaved) saveChanges(); }
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); document.getElementById('searchBox').focus(); }
+});
+
+// Warn before leaving with unsaved changes
+window.addEventListener('beforeunload', e => {
+  if (hasUnsaved) { e.preventDefault(); e.returnValue = ''; }
+});
+
+init();
+</script>
+</body>
+</html>

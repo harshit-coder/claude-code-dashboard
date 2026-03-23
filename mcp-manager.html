@@ -1,0 +1,1349 @@
+<!--
+  =============================================================================
+  MCP Server Manager — UI
+  =============================================================================
+
+  PURPOSE:
+    Web UI to view, enable/disable, edit, add, and delete MCP servers
+    defined in .claude.json. Works with both mcpServers (enabled) and
+    disabledMcpServers (disabled) keys.
+
+  HOW TO USE:
+    Option 1 (recommended — auto-loads):
+      1. Start the server:  node mcp-manager-server.js
+      2. Open http://localhost:3456 in your browser
+      The config loads automatically via the API.
+
+    Option 2 (standalone — manual file pick):
+      Open this HTML file directly in Chrome/Edge.
+      Click "Load .claude.json" and pick the file manually.
+
+  AUTO-START ON BOOT:
+    mcp-manager-start.vbs in the Windows Startup folder launches the server
+    silently on every login. No action needed after setup.
+
+  IF .claude.json PATH CHANGES:
+    Edit CLAUDE_JSON_PATH in mcp-manager-server.js — that's the only change.
+    The HTML reads the path from the server automatically.
+
+  FILES:
+    mcp-manager.html       — This file (the UI)
+    mcp-manager-server.js  — Node.js server (reads/writes .claude.json)
+    mcp-manager-start.vbs  — Silent launcher for Windows Startup
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Server Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --green-dim: #1a3a32;
+    --red: #e74c3c;
+    --red-dim: #3a1a1a;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header h1 .icon { font-size: 24px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { background: var(--border); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-save { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn-save:hover { opacity: 0.9; }
+  .btn-danger { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn-danger:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 20px;
+    padding: 14px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .stat .num {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .stat.enabled .num { color: var(--green); }
+  .stat.disabled .num { color: var(--red); }
+
+  /* Search + Filter */
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    padding: 16px 32px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 14px 9px 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+  .search-wrap::before {
+    content: "\1F50D";
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+  }
+
+  .filter-btns { display: flex; gap: 4px; }
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .filter-btn:hover:not(.active) { background: var(--surface2); }
+
+  /* Main content */
+  .main { padding: 0 32px 32px; }
+
+  /* Landing state */
+  .landing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    gap: 16px;
+  }
+  .landing .big-icon { font-size: 64px; opacity: 0.6; }
+  .landing p { color: var(--text-dim); max-width: 400px; line-height: 1.6; }
+
+  /* Grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card.disabled-card { opacity: 0.55; }
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-name {
+    font-size: 15px;
+    font-weight: 600;
+    word-break: break-all;
+  }
+  .card-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .badge-enabled { background: var(--green-dim); color: var(--green); }
+  .badge-disabled { background: var(--red-dim); color: var(--red); }
+  .badge-tools {
+    background: #1a2535;
+    color: #5ba0d0;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 4px;
+  }
+  .badge-tools:hover { opacity: 0.8; }
+  .badge-tools.loading { opacity: 0.5; cursor: wait; }
+
+  .tools-list {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    display: none;
+  }
+  .tools-list.show { display: block; }
+  .tools-list .tool-item {
+    font-size: 11px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+  .tools-list .tool-item:last-child { border-bottom: none; }
+  .tools-list .tool-name {
+    color: var(--accent);
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    flex-shrink: 0;
+  }
+  .tools-list .tool-desc {
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .card-row .label {
+    color: var(--text-dim);
+    min-width: 55px;
+    flex-shrink: 0;
+    font-weight: 500;
+  }
+  .card-row .value {
+    color: var(--text);
+    word-break: break-all;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11.5px;
+  }
+  .env-tag {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    margin: 1px 2px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .card-actions .btn { flex: 1; justify-content: center; font-size: 12px; padding: 6px 10px; }
+  .card-actions .btn-ping { flex: 0 0 auto; }
+  .ping-result {
+    font-size: 11px;
+    font-weight: 500;
+    align-self: center;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .ping-ok { color: var(--green); }
+  .ping-fail { color: var(--red); }
+
+  /* Toggle switch */
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .toggle input { display: none; }
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 11px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--green); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 520px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 28px;
+  }
+  .modal h2 {
+    font-size: 18px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .form-group input, .form-group textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    outline: none;
+  }
+  .form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
+  .form-group textarea { resize: vertical; min-height: 60px; }
+  .form-group .hint { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .env-rows { display: flex; flex-direction: column; gap: 6px; }
+  .env-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .env-row input { flex: 1; }
+  .env-row .remove-env {
+    background: none;
+    border: none;
+    color: var(--red);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    line-height: 1;
+  }
+  .add-env-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    color: var(--accent);
+    padding: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .add-env-btn:hover { border-color: var(--accent); }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 300;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.error { background: var(--red); }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Unsaved indicator */
+  .unsaved-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--orange);
+    border-radius: 50%;
+    display: none;
+  }
+  .unsaved-dot.show { display: inline-block; }
+
+  /* Watchdog dot */
+  .watchdog-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle;
+  }
+  .watchdog-dot.ok { background: var(--green); }
+  .watchdog-dot.fail { background: var(--red); }
+  .watchdog-dot.unknown { background: var(--border); }
+
+  /* Watchdog active button */
+  .btn.watchdog-active { background: var(--green); border-color: var(--green); color: #fff; }
+
+  /* Speed badge */
+  .speed-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-left: 6px;
+  }
+  .speed-badge.slow { background: rgba(243,156,18,0.2); color: var(--orange); }
+  .speed-badge.very-slow { background: rgba(231,76,60,0.2); color: var(--red); }
+
+  @media (max-width: 600px) {
+    .header, .stats-bar, .toolbar, .main { padding-left: 16px; padding-right: 16px; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#9881;</span> MCP Server Manager <span class="unsaved-dot" id="unsavedDot"></span></h1>
+  <div class="header-actions">
+    <button class="btn" id="loadBtn" onclick="loadFile()">&#128194; Load .claude.json</button>
+    <button class="btn btn-save" id="saveBtn" onclick="saveFile()" disabled>&#128190; Save Changes</button>
+    <button class="btn" id="watchdogBtn" onclick="toggleWatchdog()">&#128021; Watchdog: OFF</button>
+  </div>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('servers')</script>
+
+<div class="stats-bar" id="statsBar" style="display:none;">
+  <div class="stat"><span class="num" id="totalCount">0</span> Total</div>
+  <div class="stat enabled"><span class="num" id="enabledCount">0</span> Enabled</div>
+  <div class="stat disabled"><span class="num" id="disabledCount">0</span> Disabled</div>
+</div>
+
+<div class="toolbar" id="toolbar" style="display:none;">
+  <div class="search-wrap">
+    <input class="search-box" id="searchBox" type="text" placeholder="Search servers..." oninput="renderCards()">
+  </div>
+  <div class="filter-btns">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" data-filter="enabled" onclick="setFilter('enabled', this)">Enabled</button>
+    <button class="filter-btn" data-filter="disabled" onclick="setFilter('disabled', this)">Disabled</button>
+  </div>
+  <button class="btn" onclick="fetchAllTools()" id="fetchAllBtn">&#128268; Fetch All Tools</button>
+  <button class="btn" onclick="pingAll()" id="pingAllBtn">&#128226; Ping All</button>
+  <button class="btn" onclick="sortBySpeed()" id="sortSpeedBtn" style="display:none;">&#9889; Sort by Speed</button>
+  <button class="btn btn-primary" onclick="openAddModal()">&#43; Add Server</button>
+</div>
+
+<div class="main">
+  <div class="landing" id="landing">
+    <div class="big-icon">&#9881;</div>
+    <h2>MCP Server Manager</h2>
+    <p>Default path: <code id="pathDisplay" style="color:var(--accent);"></code></p>
+    <div id="autoLoadMsg" style="display:none; margin-top:8px;">
+      <p style="color:var(--text-dim); margin-bottom:12px; line-height:1.6;">
+        For auto-load, start the server first:<br>
+        <code style="background:var(--surface2); padding:6px 12px; border-radius:6px; display:inline-block; margin-top:6px; color:var(--accent);">node mcp-manager-server.js</code><br>
+        <span style="font-size:12px; margin-top:4px; display:inline-block;">Then open <code>http://localhost:3456</code></span>
+      </p>
+      <p style="color:var(--text-dim); margin-bottom:12px;">Or pick the file manually:</p>
+    </div>
+    <button class="btn btn-primary" onclick="loadFile()" style="margin-top:8px; font-size:15px; padding:12px 28px;">&#128194; Open .claude.json</button>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modalTitle">&#43; Add MCP Server</h2>
+    <div class="form-group">
+      <label>Server Name</label>
+      <input type="text" id="fName" placeholder="e.g. my-server">
+    </div>
+    <div class="form-group">
+      <label>Command</label>
+      <input type="text" id="fCommand" placeholder="e.g. npx, uvx, node">
+    </div>
+    <div class="form-group">
+      <label>Arguments</label>
+      <input type="text" id="fArgs" placeholder="e.g. -y @some/mcp-server">
+      <div class="hint">Space-separated arguments</div>
+    </div>
+    <div class="form-group">
+      <label>Environment Variables</label>
+      <div class="env-rows" id="envRows"></div>
+      <button class="add-env-btn" onclick="addEnvRow()">+ Add Variable</button>
+    </div>
+    <div class="form-group">
+      <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-size:13px;">
+        <input type="checkbox" id="fEnabled" checked> Enabled on save
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="saveModal()">Add Server</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal" style="width:400px; text-align:center;">
+    <h2 style="justify-content:center;">&#9888;&#65039; Delete Server</h2>
+    <p style="color:var(--text-dim); margin-bottom:20px;">Are you sure you want to remove <strong id="deleteName"></strong>?</p>
+    <div class="modal-actions" style="justify-content:center;">
+      <button class="btn" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== CONFIG ==========
+const API_BASE = 'http://localhost:3456';
+// ============================
+
+let fileHandle = null;
+let claudeData = null;
+let usingApi = false;
+let currentFilter = 'all';
+let editingServer = null;
+let deletingServer = null;
+let hasUnsaved = false;
+
+function toast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '') + ' show';
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function markUnsaved() {
+  hasUnsaved = true;
+  document.getElementById('unsavedDot').classList.add('show');
+  document.getElementById('saveBtn').disabled = false;
+}
+
+function markSaved() {
+  hasUnsaved = false;
+  document.getElementById('unsavedDot').classList.remove('show');
+  document.getElementById('saveBtn').disabled = true;
+}
+
+function applyLoadedData(data, source, filePath) {
+  claudeData = data;
+  if (!claudeData.mcpServers) claudeData.mcpServers = {};
+  if (!claudeData.disabledMcpServers) claudeData.disabledMcpServers = {};
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('toolbar').style.display = 'flex';
+  if (filePath) document.getElementById('pathDisplay').textContent = filePath;
+  markSaved();
+  renderCards();
+  toast('Loaded from ' + source);
+}
+
+// Auto-load via local API server
+async function autoLoad() {
+  document.getElementById('pathDisplay').textContent = 'Connecting to server...';
+  try {
+    const resp = await fetch(API_BASE + '/api/config');
+    if (resp.ok) {
+      const result = await resp.json();
+      if (result.data) {
+        usingApi = true;
+        document.getElementById('pathDisplay').textContent = result.path;
+        applyLoadedData(result.data, 'server', result.path);
+        return;
+      }
+    }
+  } catch (_) {}
+  // Server not running — fall back to manual file picker
+  document.getElementById('pathDisplay').textContent = 'Server not running. Use manual load or run: node mcp-manager-server.js';
+  document.getElementById('autoLoadMsg').style.display = 'block';
+}
+
+async function loadFile() {
+  // Try API first
+  if (!usingApi) {
+    try {
+      const resp = await fetch(API_BASE + '/api/config');
+      if (resp.ok) {
+        const result = await resp.json();
+        if (result.data) {
+          usingApi = true;
+          applyLoadedData(result.data, 'server', result.path);
+          return;
+        }
+      }
+    } catch (_) {}
+  }
+  // Fallback: File System Access API
+  try {
+    [fileHandle] = await window.showOpenFilePicker({
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      startIn: 'documents'
+    });
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    usingApi = false;
+    applyLoadedData(JSON.parse(text), fileHandle.name);
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('Failed to load: ' + e.message, true);
+  }
+}
+
+async function saveFile() {
+  if (!claudeData) return;
+
+  // Save via API if available
+  if (usingApi) {
+    try {
+      const resp = await fetch(API_BASE + '/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(claudeData)
+      });
+      const result = await resp.json();
+      if (result.success) {
+        markSaved();
+        toast('Saved successfully! (backup created)');
+        return;
+      }
+      toast('Save failed: ' + result.error, true);
+    } catch (e) {
+      toast('Server unreachable: ' + e.message, true);
+    }
+    return;
+  }
+
+  // Fallback: File System Access API
+  if (!fileHandle) return;
+  try {
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(claudeData, null, 2));
+    await writable.close();
+    markSaved();
+    toast('Saved successfully!');
+  } catch (e) {
+    toast('Save failed: ' + e.message, true);
+  }
+}
+
+function getAllServers() {
+  const servers = [];
+  for (const [name, config] of Object.entries(claudeData.mcpServers || {})) {
+    servers.push({ name, config, enabled: true });
+  }
+  for (const [name, config] of Object.entries(claudeData.disabledMcpServers || {})) {
+    servers.push({ name, config, enabled: false });
+  }
+  return servers.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function updateStats() {
+  const all = getAllServers();
+  const enabled = all.filter(s => s.enabled).length;
+  document.getElementById('totalCount').textContent = all.length;
+  document.getElementById('enabledCount').textContent = enabled;
+  document.getElementById('disabledCount').textContent = all.length - enabled;
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCards();
+}
+
+function renderCards() {
+  if (!claudeData) return;
+  updateStats();
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  let servers = getAllServers();
+
+  if (search) servers = servers.filter(s => s.name.toLowerCase().includes(search));
+  if (currentFilter === 'enabled') servers = servers.filter(s => s.enabled);
+  if (currentFilter === 'disabled') servers = servers.filter(s => !s.enabled);
+
+  const grid = document.getElementById('grid');
+  if (servers.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-dim); padding:40px; text-align:center; grid-column:1/-1;">No servers found.</p>';
+    return;
+  }
+
+  grid.innerHTML = servers.map(s => {
+    const c = s.config;
+    const envKeys = c.env ? Object.keys(c.env) : [];
+    const envHtml = envKeys.length
+      ? envKeys.map(k => `<span class="env-tag">${esc(k)}</span>`).join(' ')
+      : '<span style="opacity:0.5">none</span>';
+    const argsStr = c.args ? c.args.join(' ') : '';
+
+    const toolData = toolsCache[s.name];
+    const toolBadge = toolData
+      ? `<span class="badge-tools" onclick="toggleToolsList('${esc(s.name)}')" title="Click to see tools">${toolData.count} tools</span>`
+      : `<span class="badge-tools" onclick="fetchTools('${esc(s.name)}', this)" title="Click to fetch tools">? tools</span>`;
+
+    const toolListHtml = toolData
+      ? `<div class="tools-list" id="tools-${esc(s.name)}">
+          ${toolData.tools.map(t => `<div class="tool-item"><span class="tool-name">${esc(t.name)}</span><span class="tool-desc">${esc(t.description)}</span></div>`).join('')}
+         </div>`
+      : `<div class="tools-list" id="tools-${esc(s.name)}"></div>`;
+
+    return `
+      <div class="card ${s.enabled ? '' : 'disabled-card'}">
+        <div class="card-top">
+          <div class="card-name">${esc(s.name)}</div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ${toolBadge}
+            <span class="card-badge ${s.enabled ? 'badge-enabled' : 'badge-disabled'}">${s.enabled ? 'Enabled' : 'Disabled'}</span>
+          </div>
+        </div>
+        ${c.command ? `<div class="card-row"><span class="label">Cmd</span><span class="value">${esc(c.command)}</span></div>` : ''}
+        ${argsStr ? `<div class="card-row"><span class="label">Args</span><span class="value">${esc(argsStr)}</span></div>` : ''}
+        <div class="card-row"><span class="label">Env</span><span class="value">${envHtml}</span></div>
+        ${toolListHtml}
+        <div class="card-actions">
+          <label class="toggle" title="${s.enabled ? 'Disable' : 'Enable'}">
+            <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleServer('${esc(s.name)}', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+          <button class="btn btn-ping" onclick="pingServer('${esc(s.name)}', this)">&#128226; Ping</button>
+          <span class="ping-result" id="ping-${esc(s.name)}">${pingResults[s.name] || ''}</span>
+          ${window.electronAPI?.isElectron ? `<button class="btn" style="background:var(--green);color:#fff;" onclick="mcpControl('start','${esc(s.name)}', this)">&#9654; Start</button><button class="btn" style="background:var(--red);color:#fff;" onclick="mcpControl('stop','${esc(s.name)}', this)">&#9632; Stop</button>` : ''}
+          <button class="btn" onclick="openEditModal('${esc(s.name)}')">&#9998; Edit</button>
+          <button class="btn btn-danger" onclick="openDeleteModal('${esc(s.name)}')">&#128465;</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// --- Tools fetching ---
+const toolsCache = {};
+
+async function fetchTools(name, badgeEl) {
+  if (!usingApi) { toast('Tools fetch requires the server (localhost:3456)', true); return; }
+  if (badgeEl) { badgeEl.classList.add('loading'); badgeEl.textContent = '...'; }
+  try {
+    const resp = await fetch(API_BASE + '/api/tools?name=' + encodeURIComponent(name));
+    const result = await resp.json();
+    if (result.error) {
+      toast(`${name}: ${result.error}`, true);
+      toolsCache[name] = { tools: [], count: 0, error: result.error };
+    } else {
+      toolsCache[name] = { tools: result.tools, count: result.count };
+      toast(`${name}: ${result.count} tools found`);
+    }
+  } catch (e) {
+    toast(`${name}: fetch failed`, true);
+    toolsCache[name] = { tools: [], count: 0, error: e.message };
+  }
+  renderCards();
+}
+
+async function fetchAllTools() {
+  if (!usingApi) { toast('Tools fetch requires the server (localhost:3456)', true); return; }
+  const btn = document.getElementById('fetchAllBtn');
+  btn.disabled = true;
+  btn.textContent = 'Fetching...';
+  const servers = getAllServers().filter(s => s.config.command);
+  let done = 0;
+
+  // Fetch 3 at a time to avoid spawning too many processes
+  for (let i = 0; i < servers.length; i += 3) {
+    const batch = servers.slice(i, i + 3);
+    await Promise.all(batch.map(async (s) => {
+      try {
+        const resp = await fetch(API_BASE + '/api/tools?name=' + encodeURIComponent(s.name));
+        const result = await resp.json();
+        if (result.error) {
+          toolsCache[s.name] = { tools: [], count: 0, error: result.error };
+        } else {
+          toolsCache[s.name] = { tools: result.tools, count: result.count };
+        }
+      } catch (_) {
+        toolsCache[s.name] = { tools: [], count: 0, error: 'fetch failed' };
+      }
+      done++;
+      btn.textContent = `Fetching... (${done}/${servers.length})`;
+    }));
+    renderCards();
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '&#128268; Fetch All Tools';
+  const total = Object.values(toolsCache).reduce((sum, t) => sum + t.count, 0);
+  toast(`Done! ${total} total tools across ${servers.length} servers`);
+}
+
+function toggleToolsList(name) {
+  const el = document.getElementById('tools-' + name);
+  if (el) el.classList.toggle('show');
+}
+
+function toggleServer(name, enabled) {
+  if (!claudeData.disabledMcpServers) claudeData.disabledMcpServers = {};
+  if (enabled) {
+    // Move from disabledMcpServers -> mcpServers
+    const config = claudeData.disabledMcpServers[name];
+    if (config) {
+      claudeData.mcpServers[name] = config;
+      delete claudeData.disabledMcpServers[name];
+    }
+  } else {
+    // Move from mcpServers -> disabledMcpServers
+    const config = claudeData.mcpServers[name];
+    if (config) {
+      claudeData.disabledMcpServers[name] = config;
+      delete claudeData.mcpServers[name];
+    }
+  }
+  markUnsaved();
+  renderCards();
+}
+
+// --- Add / Edit Modal ---
+function openAddModal() {
+  editingServer = null;
+  document.getElementById('modalTitle').innerHTML = '&#43; Add MCP Server';
+  document.getElementById('modalSaveBtn').textContent = 'Add Server';
+  document.getElementById('fName').value = '';
+  document.getElementById('fName').disabled = false;
+  document.getElementById('fCommand').value = '';
+  document.getElementById('fArgs').value = '';
+  document.getElementById('fEnabled').checked = true;
+  document.getElementById('envRows').innerHTML = '';
+  document.getElementById('modal').classList.add('active');
+}
+
+function getServerConfig(name) {
+  if (claudeData.mcpServers[name]) return { config: claudeData.mcpServers[name], enabled: true };
+  if (claudeData.disabledMcpServers && claudeData.disabledMcpServers[name]) return { config: claudeData.disabledMcpServers[name], enabled: false };
+  return null;
+}
+
+function openEditModal(name) {
+  editingServer = name;
+  const s = getServerConfig(name);
+  if (!s) return;
+  const c = s.config;
+  document.getElementById('modalTitle').innerHTML = '&#9998; Edit: ' + esc(name);
+  document.getElementById('modalSaveBtn').textContent = 'Save Changes';
+  document.getElementById('fName').value = name;
+  document.getElementById('fName').disabled = true;
+  document.getElementById('fCommand').value = c.command || '';
+  document.getElementById('fArgs').value = (c.args || []).join(' ');
+  document.getElementById('fEnabled').checked = s.enabled;
+  const envRows = document.getElementById('envRows');
+  envRows.innerHTML = '';
+  if (c.env) {
+    for (const [k, v] of Object.entries(c.env)) {
+      addEnvRow(k, v);
+    }
+  }
+  document.getElementById('modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+function addEnvRow(key = '', val = '') {
+  const row = document.createElement('div');
+  row.className = 'env-row';
+  row.innerHTML = `
+    <input type="text" placeholder="KEY" value="${esc(key)}" class="env-key">
+    <input type="text" placeholder="value" value="${esc(val)}" class="env-val">
+    <button class="remove-env" onclick="this.parentElement.remove()">&times;</button>
+  `;
+  document.getElementById('envRows').appendChild(row);
+}
+
+function saveModal() {
+  const name = document.getElementById('fName').value.trim();
+  const command = document.getElementById('fCommand').value.trim();
+  const argsStr = document.getElementById('fArgs').value.trim();
+  const enabled = document.getElementById('fEnabled').checked;
+
+  if (!name) { toast('Server name is required', true); return; }
+  if (!editingServer && (claudeData.mcpServers[name] || (claudeData.disabledMcpServers && claudeData.disabledMcpServers[name]))) {
+    toast('Server "' + name + '" already exists', true); return;
+  }
+
+  const config = {};
+  if (command) config.command = command;
+  if (argsStr) config.args = argsStr.split(/\s+/);
+
+  // Collect env vars
+  const envRows = document.querySelectorAll('#envRows .env-row');
+  if (envRows.length > 0) {
+    const env = {};
+    envRows.forEach(row => {
+      const k = row.querySelector('.env-key').value.trim();
+      const v = row.querySelector('.env-val').value.trim();
+      if (k) env[k] = v;
+    });
+    if (Object.keys(env).length > 0) config.env = env;
+  }
+
+  if (!claudeData.disabledMcpServers) claudeData.disabledMcpServers = {};
+
+  if (editingServer) {
+    // Get original from whichever key it lives in
+    const s = getServerConfig(editingServer);
+    const original = s ? s.config : {};
+    const merged = { ...original, ...config };
+    if (command) merged.command = command; else delete merged.command;
+    if (argsStr) merged.args = config.args; else delete merged.args;
+    if (config.env) merged.env = config.env; else delete merged.env;
+    delete merged.disabled; // no longer using this flag
+
+    // Remove from both keys first
+    delete claudeData.mcpServers[editingServer];
+    delete claudeData.disabledMcpServers[editingServer];
+
+    // Place in the correct key
+    if (enabled) {
+      claudeData.mcpServers[editingServer] = merged;
+    } else {
+      claudeData.disabledMcpServers[editingServer] = merged;
+    }
+  } else {
+    // New server — place in correct key
+    if (enabled) {
+      claudeData.mcpServers[name] = config;
+    } else {
+      claudeData.disabledMcpServers[name] = config;
+    }
+  }
+
+  markUnsaved();
+  closeModal();
+  renderCards();
+  toast(editingServer ? 'Server updated' : 'Server added');
+}
+
+// --- Delete ---
+function openDeleteModal(name) {
+  deletingServer = name;
+  document.getElementById('deleteName').textContent = name;
+  document.getElementById('deleteModal').classList.add('active');
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('active');
+}
+function confirmDelete() {
+  if (deletingServer) {
+    let found = false;
+    if (claudeData.mcpServers[deletingServer]) {
+      delete claudeData.mcpServers[deletingServer];
+      found = true;
+    }
+    if (claudeData.disabledMcpServers && claudeData.disabledMcpServers[deletingServer]) {
+      delete claudeData.disabledMcpServers[deletingServer];
+      found = true;
+    }
+    if (found) {
+      markUnsaved();
+      renderCards();
+      toast('Deleted "' + deletingServer + '"');
+    }
+  }
+  closeDeleteModal();
+}
+
+// --- Health Ping ---
+const pingResults = {};
+
+async function pingServer(name, btnEl) {
+  if (!usingApi) { toast('Ping requires the server (localhost:3456)', true); return; }
+  const origText = btnEl.innerHTML;
+  btnEl.textContent = '...';
+  btnEl.disabled = true;
+  try {
+    const resp = await fetch(API_BASE + '/api/tools/ping?name=' + encodeURIComponent(name));
+    const text = await resp.text();
+    let result;
+    try { result = JSON.parse(text); } catch(_) { pingResults[name] = `<span class="ping-fail">FAIL: Invalid response</span>`; return; }
+
+    if (result.status === 'ok' || result.note) {
+      const time = result.responseTimeMs ? `${result.responseTimeMs}ms` : '';
+      const tools = result.toolCount !== undefined ? `${result.toolCount} tools` : '';
+      const note = result.note ? result.note.slice(0, 50) : '';
+      const parts = [time, tools, note].filter(Boolean).join(', ');
+      pingResults[name] = `<span class="ping-ok">OK${parts ? ' — ' + parts : ''}</span>`;
+    } else {
+      const errMsg = result.error || result.message || 'Server did not respond';
+      pingResults[name] = `<span class="ping-fail">FAIL: ${esc(errMsg.slice(0, 80))}</span>`;
+    }
+  } catch (e) {
+    pingResults[name] = `<span class="ping-fail">FAIL: ${esc(e.message || 'Network error')}</span>`;
+  }
+  btnEl.innerHTML = origText;
+  btnEl.disabled = false;
+  // Update result display — try exact ID first, then escaped
+  let resultEl = document.getElementById('ping-' + name);
+  if (!resultEl) resultEl = document.querySelector(`[id="ping-${name}"]`);
+  if (resultEl) resultEl.innerHTML = pingResults[name];
+  renderCards(); // re-render to show result
+}
+
+async function pingAll() {
+  if (!usingApi) { toast('Ping requires the server (localhost:3456)', true); return; }
+  const btn = document.getElementById('pingAllBtn');
+  btn.disabled = true;
+  const allServers = getAllServers();
+  const enabledServers = allServers.filter(s => s.enabled);
+  const skipped = allServers.length - enabledServers.length;
+  let okCount = 0, failCount = 0, done = 0;
+
+  for (const s of enabledServers) {
+    done++;
+    btn.textContent = `Pinging ${done}/${enabledServers.length}...`;
+    try {
+      const resp = await fetch(API_BASE + '/api/tools/ping?name=' + encodeURIComponent(s.name));
+      const result = await resp.json();
+      if (result.status === 'ok') {
+        pingResults[s.name] = `<span class="ping-ok">OK ${result.responseTimeMs}ms (${result.toolCount} tools)</span>`;
+        okCount++;
+      } else {
+        pingResults[s.name] = `<span class="ping-fail">FAIL: ${esc(result.error || 'unknown error')}</span>`;
+        failCount++;
+      }
+    } catch (e) {
+      pingResults[s.name] = `<span class="ping-fail">FAIL: ${esc(e.message)}</span>`;
+      failCount++;
+    }
+    const resultEl = document.getElementById('ping-' + s.name);
+    if (resultEl) resultEl.innerHTML = pingResults[s.name];
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '&#128226; Ping All';
+  toast(`${okCount} OK, ${failCount} failed, ${skipped} skipped (disabled)`);
+}
+
+// Close modals on overlay click
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.getElementById('deleteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeDeleteModal(); });
+
+// --- Watchdog ---
+let watchdogInterval = null;
+let watchdogEnabled = false;
+const watchdogStatus = {};
+
+function toggleWatchdog() {
+  watchdogEnabled = !watchdogEnabled;
+  const btn = document.getElementById('watchdogBtn');
+  if (watchdogEnabled) {
+    btn.innerHTML = '&#128021; Watchdog: ON';
+    btn.classList.add('watchdog-active');
+    runWatchdog();
+    watchdogInterval = setInterval(runWatchdog, 60000);
+  } else {
+    btn.innerHTML = '&#128021; Watchdog: OFF';
+    btn.classList.remove('watchdog-active');
+    if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
+  }
+}
+
+async function runWatchdog() {
+  if (!usingApi || !claudeData) return;
+  const servers = getAllServers().filter(s => s.enabled);
+  for (const s of servers) {
+    const prevStatus = watchdogStatus[s.name];
+    try {
+      const resp = await fetch(API_BASE + '/api/tools/ping?name=' + encodeURIComponent(s.name));
+      const result = await resp.json();
+      if (result.status === 'ok') {
+        watchdogStatus[s.name] = { ok: true, ms: result.responseTimeMs };
+        pingResults[s.name] = `<span class="ping-ok">OK ${result.responseTimeMs}ms (${result.toolCount} tools)</span>`;
+      } else {
+        watchdogStatus[s.name] = { ok: false, error: result.error };
+        pingResults[s.name] = `<span class="ping-fail">FAIL: ${esc(result.error || 'unknown')}</span>`;
+        if (prevStatus && prevStatus.ok) {
+          toast(`Watchdog: "${s.name}" is now DOWN!`, true);
+        }
+      }
+    } catch (e) {
+      watchdogStatus[s.name] = { ok: false, error: e.message };
+      pingResults[s.name] = `<span class="ping-fail">FAIL: ${esc(e.message)}</span>`;
+      if (prevStatus && prevStatus.ok) {
+        toast(`Watchdog: "${s.name}" is now DOWN!`, true);
+      }
+    }
+    const resultEl = document.getElementById('ping-' + s.name);
+    if (resultEl) resultEl.innerHTML = pingResults[s.name];
+  }
+  renderCards();
+}
+
+window.addEventListener('beforeunload', e => {
+  if (watchdogInterval) { clearInterval(watchdogInterval); watchdogInterval = null; }
+  if (hasUnsaved) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// --- Sort by Speed ---
+let sortedBySpeed = false;
+
+function sortBySpeed() {
+  sortedBySpeed = !sortedBySpeed;
+  const btn = document.getElementById('sortSpeedBtn');
+  btn.classList.toggle('active', sortedBySpeed);
+  renderCards();
+}
+
+// Patch renderCards to support watchdog dots, speed badges, and speed sorting
+const _origRenderCards = renderCards;
+renderCards = function() {
+  if (!claudeData) return;
+  updateStats();
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  let servers = getAllServers();
+
+  if (search) servers = servers.filter(s => s.name.toLowerCase().includes(search));
+  if (currentFilter === 'enabled') servers = servers.filter(s => s.enabled);
+  if (currentFilter === 'disabled') servers = servers.filter(s => !s.enabled);
+
+  // Sort by speed if active
+  if (sortedBySpeed) {
+    servers.sort((a, b) => {
+      const aMs = (watchdogStatus[a.name] && watchdogStatus[a.name].ok) ? watchdogStatus[a.name].ms : (pingResults[a.name] ? extractMs(pingResults[a.name]) : 999999);
+      const bMs = (watchdogStatus[b.name] && watchdogStatus[b.name].ok) ? watchdogStatus[b.name].ms : (pingResults[b.name] ? extractMs(pingResults[b.name]) : 999999);
+      return aMs - bMs;
+    });
+  }
+
+  const grid = document.getElementById('grid');
+  if (servers.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-dim); padding:40px; text-align:center; grid-column:1/-1;">No servers found.</p>';
+    return;
+  }
+
+  grid.innerHTML = servers.map(s => {
+    const c = s.config;
+    const envKeys = c.env ? Object.keys(c.env) : [];
+    const envHtml = envKeys.length
+      ? envKeys.map(k => `<span class="env-tag">${esc(k)}</span>`).join(' ')
+      : '<span style="opacity:0.5">none</span>';
+    const argsStr = c.args ? c.args.join(' ') : '';
+
+    const toolData = toolsCache[s.name];
+    const toolBadge = toolData
+      ? `<span class="badge-tools" onclick="toggleToolsList('${esc(s.name)}')" title="Click to see tools">${toolData.count} tools</span>`
+      : `<span class="badge-tools" onclick="fetchTools('${esc(s.name)}', this)" title="Click to fetch tools">? tools</span>`;
+
+    const toolListHtml = toolData
+      ? `<div class="tools-list" id="tools-${esc(s.name)}">
+          ${toolData.tools.map(t => `<div class="tool-item"><span class="tool-name">${esc(t.name)}</span><span class="tool-desc">${esc(t.description)}</span></div>`).join('')}
+         </div>`
+      : `<div class="tools-list" id="tools-${esc(s.name)}"></div>`;
+
+    // Watchdog dot
+    const wdStatus = watchdogStatus[s.name];
+    const wdDot = watchdogEnabled && s.enabled
+      ? `<span class="watchdog-dot ${wdStatus ? (wdStatus.ok ? 'ok' : 'fail') : 'unknown'}"></span>`
+      : '';
+
+    // Speed badge
+    const ms = wdStatus && wdStatus.ok ? wdStatus.ms : extractMs(pingResults[s.name] || '');
+    let speedBadge = '';
+    if (ms > 0 && ms < 999999) {
+      if (ms > 10000) speedBadge = `<span class="speed-badge very-slow">${(ms/1000).toFixed(1)}s</span>`;
+      else if (ms > 5000) speedBadge = `<span class="speed-badge slow">${(ms/1000).toFixed(1)}s</span>`;
+    }
+
+    return `
+      <div class="card ${s.enabled ? '' : 'disabled-card'}">
+        <div class="card-top">
+          <div class="card-name">${wdDot}${esc(s.name)}${speedBadge}</div>
+          <div style="display:flex; align-items:center; gap:4px;">
+            ${toolBadge}
+            <span class="card-badge ${s.enabled ? 'badge-enabled' : 'badge-disabled'}">${s.enabled ? 'Enabled' : 'Disabled'}</span>
+          </div>
+        </div>
+        ${c.command ? `<div class="card-row"><span class="label">Cmd</span><span class="value">${esc(c.command)}</span></div>` : ''}
+        ${argsStr ? `<div class="card-row"><span class="label">Args</span><span class="value">${esc(argsStr)}</span></div>` : ''}
+        <div class="card-row"><span class="label">Env</span><span class="value">${envHtml}</span></div>
+        ${toolListHtml}
+        <div class="card-actions">
+          <label class="toggle" title="${s.enabled ? 'Disable' : 'Enable'}">
+            <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleServer('${esc(s.name)}', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+          <button class="btn btn-ping" onclick="pingServer('${esc(s.name)}', this)">&#128226; Ping</button>
+          <span class="ping-result" id="ping-${esc(s.name)}">${pingResults[s.name] || ''}</span>
+          ${window.electronAPI?.isElectron ? `<button class="btn" style="background:var(--green);color:#fff;" onclick="mcpControl('start','${esc(s.name)}', this)">&#9654; Start</button><button class="btn" style="background:var(--red);color:#fff;" onclick="mcpControl('stop','${esc(s.name)}', this)">&#9632; Stop</button>` : ''}
+          <button class="btn" onclick="openEditModal('${esc(s.name)}')">&#9998; Edit</button>
+          <button class="btn btn-danger" onclick="openDeleteModal('${esc(s.name)}')">&#128465;</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+};
+
+function extractMs(html) {
+  const match = String(html).match(/OK\s+(\d+)ms/);
+  return match ? parseInt(match[1]) : 999999;
+}
+
+// Show Sort by Speed button after Ping All completes
+const _origPingAll = pingAll;
+pingAll = async function() {
+  await _origPingAll();
+  document.getElementById('sortSpeedBtn').style.display = '';
+};
+
+// ── MCP Server Control (Electron only) ──
+async function mcpControl(action, name, btn) {
+  if (!window.electronAPI) return;
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  try {
+    let result;
+    if (action === 'start') {
+      // Find server config from loaded data
+      const allServers = [...document.querySelectorAll('.server-card')];
+      // Read config from API
+      const resp = await fetch('/api/config');
+      const data = await resp.json();
+      const cfg = data.data;
+      const serverCfg = (cfg.mcpServers && cfg.mcpServers[name]) || (cfg.disabledMcpServers && cfg.disabledMcpServers[name]);
+      if (!serverCfg) {
+        // Try settings.json
+        const resp2 = await fetch('/api/settings-local');
+        const data2 = await resp2.json();
+        const sCfg = data2.data;
+        const serverCfg2 = (sCfg.mcpServers && sCfg.mcpServers[name]) || (sCfg.disabledMcpServers && sCfg.disabledMcpServers[name]);
+        if (serverCfg2) result = await window.electronAPI.mcpStart(name, serverCfg2);
+        else result = { error: 'Server config not found' };
+      } else {
+        result = await window.electronAPI.mcpStart(name, serverCfg);
+      }
+    } else {
+      result = await window.electronAPI.mcpStop(name);
+    }
+    if (result && result.error) alert(result.error);
+  } catch (e) { console.error(e); }
+  btn.disabled = false;
+  btn.style.opacity = '1';
+}
+
+// Auto-load on page open
+window.addEventListener('DOMContentLoaded', autoLoad);
+</script>
+</body>
+</html>

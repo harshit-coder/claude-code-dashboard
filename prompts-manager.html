@@ -1,0 +1,801 @@
+<!--
+  =============================================================================
+  Prompts Manager — Prompt Library
+  =============================================================================
+  PURPOSE:
+    Save, organize, and reuse prompts for Claude Code.
+    Stored in localStorage key "claude-prompt-library".
+
+  HOW TO USE:
+    Start the server:  node mcp-manager-server.js
+    Open http://localhost:3456/prompts in your browser.
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Library</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header-left h1 { font-size: 22px; font-weight: 600; }
+  .header-left p { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); color: #fff; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { border-color: var(--red); color: var(--red); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  .controls {
+    padding: 16px 32px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 220px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  .sort-select {
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+  .sort-select option { background: var(--surface); }
+
+  .stats-bar {
+    padding: 0 32px 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .prompts-grid {
+    padding: 8px 32px 32px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 14px;
+  }
+
+  .prompt-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.15s;
+  }
+  .prompt-card:hover { border-color: var(--accent); }
+
+  .prompt-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .prompt-title {
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+    word-break: break-word;
+  }
+
+  .prompt-content {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    max-height: 80px;
+    overflow: hidden;
+    position: relative;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .prompt-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, var(--surface));
+  }
+
+  .prompt-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  .prompt-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .prompt-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 12px;
+  }
+
+  .prompt-actions { display: flex; gap: 4px; }
+
+  .stars { color: var(--orange); font-size: 13px; letter-spacing: 1px; }
+  .stars .dim { color: var(--border); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .modal-overlay.visible { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+
+  .modal h2 { font-size: 18px; margin-bottom: 18px; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    font-family: inherit;
+  }
+  .form-input:focus { border-color: var(--accent); }
+  textarea.form-input { min-height: 140px; resize: vertical; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; }
+
+  .star-picker { display: flex; gap: 4px; cursor: pointer; }
+  .star-picker span {
+    font-size: 22px;
+    color: var(--border);
+    transition: color 0.1s;
+  }
+  .star-picker span.active { color: var(--orange); }
+  .star-picker span:hover { color: var(--orange); }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+
+  /* Confirm dialog */
+  .confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1100;
+    justify-content: center;
+    align-items: center;
+  }
+  .confirm-overlay.visible { display: flex; }
+  .confirm-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 380px;
+    text-align: center;
+  }
+  .confirm-box p { margin-bottom: 16px; font-size: 14px; }
+  .confirm-actions { display: flex; gap: 8px; justify-content: center; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 2000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.visible { opacity: 1; transform: translateY(0); }
+
+  /* Hidden file input */
+  #importInput { display: none; }
+
+  /* History import items */
+  .history-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+    transition: border-color 0.15s;
+  }
+  .history-item:hover { border-color: var(--accent); }
+  .history-item input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
+  .history-item-content { flex: 1; min-width: 0; }
+  .history-item-text {
+    font-size: 13px;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 60px;
+    overflow: hidden;
+    line-height: 1.4;
+  }
+  .history-item-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .history-item-meta .project-tag {
+    background: var(--surface2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('prompts')</script>
+
+<div class="header">
+  <div class="header-left">
+    <h1>&#128203; Prompt Library</h1>
+    <p>Save, organize, and reuse your best prompts</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn" onclick="exportPrompts()">&#128229; Export</button>
+    <button class="btn" onclick="document.getElementById('importInput').click()">&#128228; Import</button>
+    <input type="file" id="importInput" accept=".json" onchange="importPrompts(event)">
+    <button class="btn" onclick="openHistoryModal()">&#128340; Import from History</button>
+    <button class="btn btn-primary" onclick="openModal()">+ New Prompt</button>
+  </div>
+</div>
+
+<div class="controls">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search prompts by title, content, or tags...">
+  <select class="sort-select" id="sortSelect" onchange="render()">
+    <option value="date">Newest first</option>
+    <option value="rating">Highest rated</option>
+    <option value="used">Most used</option>
+    <option value="alpha">Alphabetical</option>
+  </select>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+<div class="prompts-grid" id="promptsGrid"></div>
+
+<!-- Create/Edit Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h2 id="modalTitle">New Prompt</h2>
+    <input type="hidden" id="editId">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" class="form-input" id="fTitle" placeholder="e.g. Code Review Checklist">
+    </div>
+    <div class="form-group">
+      <label>Prompt Content</label>
+      <textarea class="form-input cm-editor" id="fContent" placeholder="Write your prompt here..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Tags (comma-separated)</label>
+      <input type="text" class="form-input" id="fTags" placeholder="e.g. review, code quality, best practices">
+    </div>
+    <div class="form-group">
+      <label>Rating</label>
+      <div class="star-picker" id="starPicker">
+        <span data-v="1">&#9733;</span><span data-v="2">&#9733;</span><span data-v="3">&#9733;</span><span data-v="4">&#9733;</span><span data-v="5">&#9733;</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePrompt()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm dialog -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p id="confirmMsg">Are you sure?</p>
+    <div class="confirm-actions">
+      <button class="btn" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirmBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- History Import Modal -->
+<div class="modal-overlay" id="historyOverlay" onclick="if(event.target===this)closeHistoryModal()">
+  <div class="modal" style="max-width: 680px;">
+    <h2>Import from Chat History</h2>
+    <p style="color: var(--text-dim); font-size: 13px; margin-bottom: 14px;">Prompts discovered from your Claude Code chat history. Select which ones to add to your library.</p>
+    <div id="historyLoading" style="text-align:center; padding: 30px; color: var(--text-dim);">Loading prompts from history...</div>
+    <div id="historyError" style="display:none; color: var(--red); font-size: 13px; padding: 12px; background: rgba(231,76,60,0.1); border-radius: 8px;"></div>
+    <div id="historyControls" style="display:none; margin-bottom: 12px;">
+      <label style="font-size: 12px; color: var(--text-dim); cursor: pointer;"><input type="checkbox" id="historySelectAll" onchange="toggleSelectAllHistory()"> Select all</label>
+      <span id="historyCount" style="float:right; font-size: 12px; color: var(--text-dim);"></span>
+    </div>
+    <div id="historyList" style="max-height: 400px; overflow-y: auto;"></div>
+    <div class="modal-actions" id="historyActions" style="display:none;">
+      <button class="btn" onclick="closeHistoryModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="importSelectedHistory()">Import Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'claude-prompt-library';
+let selectedRating = 3;
+let searchTerm = '';
+
+const EXAMPLE_PROMPTS = [
+  { id: 'ex1', title: 'Code Review', content: 'Review this code for bugs, security issues, performance problems, and style. Suggest concrete improvements with code examples.', tags: 'review,code quality', rating: 5, createdAt: Date.now() - 86400000, usedCount: 0 },
+  { id: 'ex2', title: 'Explain Like I\'m 5', content: 'Explain the following concept in simple terms that a beginner could understand. Use analogies and avoid jargon.\n\nConcept: [TOPIC]', tags: 'learning,explanation', rating: 4, createdAt: Date.now() - 172800000, usedCount: 0 },
+  { id: 'ex3', title: 'Write Unit Tests', content: 'Write comprehensive unit tests for the following function. Cover edge cases, error conditions, and normal operation. Use the existing test framework in this project.', tags: 'testing,code', rating: 4, createdAt: Date.now() - 259200000, usedCount: 0 },
+  { id: 'ex4', title: 'Refactor for Readability', content: 'Refactor this code to improve readability and maintainability. Preserve the existing behavior. Explain each change you make and why.', tags: 'refactor,clean code', rating: 3, createdAt: Date.now() - 345600000, usedCount: 0 },
+];
+
+function loadPrompts() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+
+function savePrompts(prompts) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(prompts));
+}
+
+function genId() { return 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 2000);
+}
+
+function renderStars(rating) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += i <= rating ? '&#9733;' : '<span class="dim">&#9733;</span>';
+  return s;
+}
+
+function getFiltered() {
+  let prompts = loadPrompts();
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    prompts = prompts.filter(p =>
+      p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q) ||
+      (p.tags || '').toLowerCase().includes(q)
+    );
+  }
+  const sort = document.getElementById('sortSelect').value;
+  prompts.sort((a, b) => {
+    if (sort === 'rating') return (b.rating || 0) - (a.rating || 0);
+    if (sort === 'used') return (b.usedCount || 0) - (a.usedCount || 0);
+    if (sort === 'alpha') return a.title.localeCompare(b.title);
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
+  return prompts;
+}
+
+function render() {
+  const prompts = loadPrompts();
+  const filtered = getFiltered();
+  document.getElementById('statsBar').textContent = filtered.length === prompts.length
+    ? `${prompts.length} prompt${prompts.length !== 1 ? 's' : ''} saved`
+    : `Showing ${filtered.length} of ${prompts.length} prompts`;
+  const grid = document.getElementById('promptsGrid');
+
+  if (prompts.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1;">
+        <h3>No prompts yet</h3>
+        <p>Start building your prompt library. Create your own or load the examples below.</p>
+        <button class="btn btn-primary" onclick="loadExamples()">Load Example Prompts</button>
+        <br><br>
+        <button class="btn" onclick="openModal()">+ Create Your First Prompt</button>
+      </div>`;
+    return;
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><p>No prompts match your search.</p></div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(p => {
+    const tags = (p.tags || '').split(',').filter(t => t.trim()).map(t => `<span class="tag">${t.trim()}</span>`).join('');
+    const date = new Date(p.createdAt).toLocaleDateString();
+    return `
+      <div class="prompt-card">
+        <div class="prompt-card-header">
+          <span class="prompt-title">${esc(p.title)}</span>
+          <span class="stars">${renderStars(p.rating || 0)}</span>
+        </div>
+        <div class="prompt-content">${esc(p.content)}</div>
+        ${tags ? `<div class="prompt-tags">${tags}</div>` : ''}
+        <div class="prompt-footer">
+          <span class="prompt-meta">
+            <span>${date}</span>
+            <span>Used ${p.usedCount || 0}x</span>
+          </span>
+          <div class="prompt-actions">
+            <button class="btn btn-sm" onclick="copyPrompt('${p.id}')" title="Copy to clipboard">&#128203; Copy</button>
+            <button class="btn btn-sm" onclick="editPrompt('${p.id}')" title="Edit">&#9998;</button>
+            <button class="btn btn-sm btn-danger" onclick="confirmDelete('${p.id}')" title="Delete">&#128465;</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Modal
+function openModal(prompt) {
+  document.getElementById('modalTitle').textContent = prompt ? 'Edit Prompt' : 'New Prompt';
+  document.getElementById('editId').value = prompt ? prompt.id : '';
+  document.getElementById('fTitle').value = prompt ? prompt.title : '';
+  document.getElementById('fContent').value = prompt ? prompt.content : '';
+  document.getElementById('fTags').value = prompt ? (prompt.tags || '') : '';
+  selectedRating = prompt ? (prompt.rating || 3) : 3;
+  updateStarPicker();
+  document.getElementById('modalOverlay').classList.add('visible');
+  setTimeout(() => document.getElementById('fTitle').focus(), 100);
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('visible'); }
+
+function updateStarPicker() {
+  document.querySelectorAll('#starPicker span').forEach(s => {
+    s.classList.toggle('active', parseInt(s.dataset.v) <= selectedRating);
+  });
+}
+
+document.getElementById('starPicker').addEventListener('click', e => {
+  if (e.target.dataset.v) { selectedRating = parseInt(e.target.dataset.v); updateStarPicker(); }
+});
+
+function savePrompt() {
+  const title = document.getElementById('fTitle').value.trim();
+  const content = document.getElementById('fContent').value.trim();
+  if (!title || !content) { showToast('Title and content are required'); return; }
+  const tags = document.getElementById('fTags').value.trim();
+  const editId = document.getElementById('editId').value;
+  const prompts = loadPrompts();
+
+  if (editId) {
+    const idx = prompts.findIndex(p => p.id === editId);
+    if (idx >= 0) { Object.assign(prompts[idx], { title, content, tags, rating: selectedRating }); }
+  } else {
+    prompts.push({ id: genId(), title, content, tags, rating: selectedRating, createdAt: Date.now(), usedCount: 0 });
+  }
+  savePrompts(prompts);
+  closeModal();
+  render();
+  showToast(editId ? 'Prompt updated' : 'Prompt saved');
+}
+
+function editPrompt(id) {
+  const p = loadPrompts().find(x => x.id === id);
+  if (p) openModal(p);
+}
+
+function copyPrompt(id) {
+  const prompts = loadPrompts();
+  const p = prompts.find(x => x.id === id);
+  if (!p) return;
+  navigator.clipboard.writeText(p.content).then(() => {
+    p.usedCount = (p.usedCount || 0) + 1;
+    savePrompts(prompts);
+    render();
+    showToast('Copied to clipboard!');
+  });
+}
+
+// Delete confirmation
+let deleteTargetId = null;
+function confirmDelete(id) {
+  deleteTargetId = id;
+  document.getElementById('confirmMsg').textContent = 'Delete this prompt? This cannot be undone.';
+  document.getElementById('confirmOverlay').classList.add('visible');
+}
+function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('visible'); deleteTargetId = null; }
+document.getElementById('confirmBtn').addEventListener('click', () => {
+  if (deleteTargetId) {
+    const prompts = loadPrompts().filter(p => p.id !== deleteTargetId);
+    savePrompts(prompts);
+    closeConfirm();
+    render();
+    showToast('Prompt deleted');
+  }
+});
+
+// Import/Export
+function exportPrompts() {
+  const prompts = loadPrompts();
+  if (!prompts.length) { showToast('No prompts to export'); return; }
+  const blob = new Blob([JSON.stringify(prompts, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'claude-prompts-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Prompts exported');
+}
+
+function importPrompts(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!Array.isArray(imported)) throw new Error('Invalid format');
+      const existing = loadPrompts();
+      const existingIds = new Set(existing.map(p => p.id));
+      let added = 0;
+      imported.forEach(p => {
+        if (!p.title || !p.content) return;
+        if (existingIds.has(p.id)) p.id = genId();
+        existing.push({ ...p, id: p.id || genId(), createdAt: p.createdAt || Date.now(), usedCount: p.usedCount || 0, rating: p.rating || 3 });
+        added++;
+      });
+      savePrompts(existing);
+      render();
+      showToast(`Imported ${added} prompt${added !== 1 ? 's' : ''}`);
+    } catch (err) {
+      showToast('Invalid JSON file');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function loadExamples() {
+  const existing = loadPrompts();
+  EXAMPLE_PROMPTS.forEach(p => existing.push({ ...p, id: genId() }));
+  savePrompts(existing);
+  render();
+  showToast('Example prompts loaded');
+}
+
+document.getElementById('searchBox').addEventListener('input', e => { searchTerm = e.target.value.trim(); render(); });
+
+// History import
+let historyPrompts = [];
+
+function openHistoryModal() {
+  document.getElementById('historyOverlay').classList.add('visible');
+  document.getElementById('historyLoading').style.display = 'block';
+  document.getElementById('historyError').style.display = 'none';
+  document.getElementById('historyControls').style.display = 'none';
+  document.getElementById('historyActions').style.display = 'none';
+  document.getElementById('historyList').innerHTML = '';
+  historyPrompts = [];
+  fetchHistoryPrompts();
+}
+
+function closeHistoryModal() {
+  document.getElementById('historyOverlay').classList.remove('visible');
+}
+
+async function fetchHistoryPrompts() {
+  try {
+    const resp = await fetch('/api/common-prompts');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    const data = await resp.json();
+    historyPrompts = data.prompts || [];
+    document.getElementById('historyLoading').style.display = 'none';
+
+    if (historyPrompts.length === 0) {
+      document.getElementById('historyList').innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-dim);">No prompts found in chat history.</div>';
+      return;
+    }
+
+    document.getElementById('historyControls').style.display = 'block';
+    document.getElementById('historyActions').style.display = 'flex';
+    document.getElementById('historyCount').textContent = `${historyPrompts.length} prompt${historyPrompts.length !== 1 ? 's' : ''} found`;
+
+    const list = document.getElementById('historyList');
+    list.innerHTML = historyPrompts.map((p, i) => {
+      const lastUsed = p.lastUsed ? new Date(p.lastUsed).toLocaleDateString() : 'Unknown';
+      const preview = p.text.length > 200 ? p.text.slice(0, 200) + '...' : p.text;
+      return `
+        <div class="history-item">
+          <input type="checkbox" data-idx="${i}" class="history-cb">
+          <div class="history-item-content">
+            <div class="history-item-text">${esc(preview)}</div>
+            <div class="history-item-meta">
+              <span>Used ${p.count || 1}x</span>
+              <span>Last: ${lastUsed}</span>
+              ${p.project ? `<span class="project-tag">${esc(p.project)}</span>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    document.getElementById('historyLoading').style.display = 'none';
+    const errEl = document.getElementById('historyError');
+    errEl.style.display = 'block';
+    errEl.textContent = 'Failed to load history: ' + err.message;
+  }
+}
+
+function toggleSelectAllHistory() {
+  const checked = document.getElementById('historySelectAll').checked;
+  document.querySelectorAll('.history-cb').forEach(cb => cb.checked = checked);
+}
+
+function generateTitle(text) {
+  // Auto-generate a title from the prompt text
+  const clean = text.replace(/\s+/g, ' ').trim();
+  // Take first sentence or first N chars
+  const firstSentence = clean.split(/[.!?\n]/)[0].trim();
+  if (firstSentence.length > 0 && firstSentence.length <= 60) return firstSentence;
+  if (clean.length <= 60) return clean;
+  return clean.slice(0, 57) + '...';
+}
+
+function importSelectedHistory() {
+  const checkboxes = document.querySelectorAll('.history-cb:checked');
+  if (checkboxes.length === 0) { showToast('No prompts selected'); return; }
+
+  const existing = loadPrompts();
+  let added = 0;
+
+  checkboxes.forEach(cb => {
+    const idx = parseInt(cb.dataset.idx);
+    const hp = historyPrompts[idx];
+    if (!hp) return;
+    existing.push({
+      id: genId(),
+      title: generateTitle(hp.text),
+      content: hp.text,
+      tags: hp.project ? hp.project : '',
+      rating: 3,
+      createdAt: hp.lastUsed ? new Date(hp.lastUsed).getTime() : Date.now(),
+      usedCount: hp.count || 1
+    });
+    added++;
+  });
+
+  savePrompts(existing);
+  closeHistoryModal();
+  render();
+  showToast(`Imported ${added} prompt${added !== 1 ? 's' : ''} from history`);
+}
+
+render();
+</script>
+</body>
+</html>

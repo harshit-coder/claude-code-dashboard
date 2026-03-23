@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy &amp; Telemetry - Claude Code Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 0;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.header .icon {
+  margin-right: 8px;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 32px 40px;
+}
+
+/* Summary cards */
+.summary-bar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 22px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-card .stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.stat-card .stat-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Sections */
+.section {
+  margin-bottom: 28px;
+}
+
+.section-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Expandable cards */
+.expand-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.expand-card:hover {
+  border-color: var(--accent);
+}
+
+.expand-header {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.expand-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expand-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.expand-info {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  display: flex;
+  gap: 12px;
+}
+
+.expand-icon {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+}
+
+.expand-card.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+.expand-body {
+  display: none;
+  padding: 0 18px 16px;
+}
+
+.expand-card.expanded .expand-body {
+  display: block;
+}
+
+.preview-content {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+  max-height: 350px;
+  overflow: auto;
+  word-break: break-word;
+}
+
+/* MCP Auth */
+.auth-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.auth-dot.needs-auth { background: var(--orange); }
+.auth-dot.ok { background: var(--green); }
+
+.auth-name {
+  font-weight: 600;
+  font-size: 0.93rem;
+}
+
+.auth-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+/* Data locations */
+.dir-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 8px;
+}
+
+.dir-path {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.dir-desc {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+/* Privacy tips */
+.tip-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 10px;
+}
+
+.tip-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.tip-text {
+  font-size: 0.84rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.tip-text code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.82rem;
+  color: var(--orange);
+}
+
+/* Loading & error */
+.loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-msg {
+  background: rgba(231,76,60,0.1);
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  color: var(--red);
+  text-align: center;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+</style>
+</head>
+<body>
+
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('privacy')</script>
+
+<div class="header">
+  <h1><span class="icon">&#128274;</span> Privacy &amp; Telemetry Audit</h1>
+</div>
+
+<div class="container">
+
+  <!-- Summary -->
+  <div class="summary-bar">
+    <div class="stat-card">
+      <div>
+        <div class="stat-value" id="telFileCount">-</div>
+        <div class="stat-label">Telemetry Files</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div>
+        <div class="stat-value" id="telTotalSize">-</div>
+        <div class="stat-label">Total Size</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div>
+        <div class="stat-value" id="telEventCount">-</div>
+        <div class="stat-label">Total Events</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telemetry files -->
+  <div class="section">
+    <div class="section-title">What's Being Collected?</div>
+    <div id="telemetryList">
+      <div class="loading" id="telLoading">
+        <div class="spinner"></div>
+        Loading telemetry data...
+      </div>
+    </div>
+  </div>
+
+  <!-- MCP Auth -->
+  <div class="section">
+    <div class="section-title">MCP Auth Status</div>
+    <div id="mcpAuthList">
+      <div class="loading" id="authLoading">
+        <div class="spinner"></div>
+        Checking MCP auth...
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Locations -->
+  <div class="section">
+    <div class="section-title">Data Locations</div>
+    <div id="dataLocations">
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/</div>
+        <div class="dir-desc">Root configuration directory for Claude Code. Contains settings, credentials, and project data.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/projects/</div>
+        <div class="dir-desc">Per-project conversation history, CLAUDE.md files, and project-specific settings.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/telemetry/</div>
+        <div class="dir-desc">Usage telemetry and event logs. Tracks tool usage, token counts, errors, and session data.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/credentials.json</div>
+        <div class="dir-desc">Authentication tokens and API keys for Claude and connected services.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/settings.json</div>
+        <div class="dir-desc">Global user preferences, model settings, and feature flags.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/statsig/</div>
+        <div class="dir-desc">Feature flag and A/B testing data from Statsig SDK. Determines which features are enabled.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/mcp.json</div>
+        <div class="dir-desc">MCP server configurations including command paths, arguments, and environment variables.</div>
+      </div>
+      <div class="dir-item">
+        <div class="dir-path">~/.claude/paste/</div>
+        <div class="dir-desc">Cached paste content from clipboard operations during conversations.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Tips -->
+  <div class="section">
+    <div class="section-title">Privacy Tips</div>
+
+    <div class="tip-card">
+      <div class="tip-title">Clear Telemetry Data</div>
+      <div class="tip-text">
+        Remove all telemetry files by deleting the telemetry directory:<br>
+        <code>rm -rf ~/.claude/telemetry/</code><br>
+        Claude Code will recreate the directory on next launch but existing data will be gone.
+      </div>
+    </div>
+
+    <div class="tip-card">
+      <div class="tip-title">Disable Telemetry</div>
+      <div class="tip-text">
+        Set the environment variable to opt out of telemetry collection:<br>
+        <code>export CLAUDE_CODE_DISABLE_TELEMETRY=1</code><br>
+        Add this to your shell profile (~/.bashrc, ~/.zshrc) to make it permanent.
+      </div>
+    </div>
+
+    <div class="tip-card">
+      <div class="tip-title">What Stays Local</div>
+      <div class="tip-text">
+        Conversation history, project files, paste cache, MCP configs, and local settings all stay on your machine in <code>~/.claude/</code>. They are never uploaded unless you explicitly share them.
+      </div>
+    </div>
+
+    <div class="tip-card">
+      <div class="tip-title">What Gets Sent</div>
+      <div class="tip-text">
+        Conversation messages are sent to Anthropic's API for processing. Telemetry events (tool usage, errors, token counts) may be sent for analytics. Statsig feature flag checks send anonymous identifiers.
+      </div>
+    </div>
+
+    <div class="tip-card">
+      <div class="tip-title">Audit MCP Servers</div>
+      <div class="tip-text">
+        MCP servers can access files and run commands on your machine. Review <code>~/.claude/mcp.json</code> and project-level <code>.mcp.json</code> files regularly to ensure only trusted servers are configured.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+function formatSize(bytes) {
+  if (!bytes && bytes !== 0) return '-';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function toggleCard(el) {
+  el.classList.toggle('expanded');
+}
+
+// Load telemetry
+async function loadTelemetry() {
+  try {
+    const resp = await fetch('http://localhost:3456/api/telemetry');
+    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    const data = await resp.json();
+
+    document.getElementById('telFileCount').textContent = data.count || (data.files || []).length;
+    document.getElementById('telTotalSize').textContent = formatSize(data.totalSize);
+
+    let totalEvents = 0;
+    (data.files || []).forEach(f => { totalEvents += f.eventCount || 0; });
+    document.getElementById('telEventCount').textContent = totalEvents;
+
+    document.getElementById('telLoading').style.display = 'none';
+
+    const container = document.getElementById('telemetryList');
+    if (!data.files || data.files.length === 0) {
+      container.innerHTML += '<div class="empty-state">No telemetry files found. Telemetry may be disabled.</div>';
+      return;
+    }
+
+    container.innerHTML += data.files.map((f, i) => `
+      <div class="expand-card" id="tel-${i}">
+        <div class="expand-header" onclick="toggleCard(document.getElementById('tel-${i}'))">
+          <div class="expand-meta">
+            <div class="expand-name">${escapeHtml(f.file)}</div>
+            <div class="expand-info">
+              <span>${formatSize(f.size)}</span>
+              <span>${f.eventCount || 0} events</span>
+            </div>
+          </div>
+          <span class="expand-icon">&#9660;</span>
+        </div>
+        <div class="expand-body">
+          <div class="preview-content">${escapeHtml(f.preview || 'No preview available')}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    document.getElementById('telLoading').innerHTML = '<div class="error-msg">Failed to load telemetry: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+// Load MCP Auth
+async function loadMcpAuth() {
+  try {
+    const resp = await fetch('http://localhost:3456/api/mcp-auth');
+    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    const data = await resp.json();
+
+    document.getElementById('authLoading').style.display = 'none';
+
+    const container = document.getElementById('mcpAuthList');
+    const needsAuth = data.needsAuth || {};
+    const keys = Object.keys(needsAuth);
+
+    if (keys.length === 0) {
+      container.innerHTML += '<div class="empty-state">All MCP servers are authenticated or no auth data available.</div>';
+      return;
+    }
+
+    container.innerHTML += keys.map(server => {
+      const needs = needsAuth[server];
+      const isNeeded = needs === true || (typeof needs === 'object' && Object.keys(needs).length > 0);
+      return `
+        <div class="auth-item">
+          <div class="auth-dot ${isNeeded ? 'needs-auth' : 'ok'}"></div>
+          <div class="auth-name">${escapeHtml(server)}</div>
+          <div class="auth-status">${isNeeded ? 'Needs Authentication' : 'Authenticated'}</div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    document.getElementById('authLoading').innerHTML = '<div class="error-msg">Failed to load MCP auth: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+loadTelemetry();
+loadMcpAuth();
+</script>
+</body>
+</html>

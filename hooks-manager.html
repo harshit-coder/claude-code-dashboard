@@ -1,0 +1,808 @@
+<!--
+  =============================================================================
+  Hooks Manager — UI
+  =============================================================================
+  PURPOSE:
+    Web UI to view, create, edit, and delete Claude Code hooks.
+    Hooks are stored in ~/.claude/settings.json under the "hooks" key.
+
+  HOW TO USE:
+    Start the server:  node mcp-manager-server.js
+    Open http://localhost:3456/hooks in your browser.
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hooks Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --green-dim: #1a3a32;
+    --red: #e74c3c;
+    --red-dim: #3a1a1a;
+    --orange: #f39c12;
+    --yellow-dim: rgba(255,234,167,0.1);
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header h1 .icon { font-size: 24px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  .unsaved-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--orange); display: none;
+  }
+  .unsaved-dot.show { display: inline-block; }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); background: var(--surface); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+  .btn-danger:hover { background: var(--red); color: #fff; }
+  .btn-save { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn-save:hover { opacity: 0.9; }
+  .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sm { padding: 4px 12px; font-size: 12px; }
+
+  .stats {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 12px 32px 4px;
+  }
+
+  .content { padding: 16px 32px 32px; }
+
+  /* Event type sections */
+  .event-section {
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .event-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .event-header:hover { background: var(--surface2); }
+
+  .event-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .chevron {
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    font-size: 14px;
+  }
+  .chevron.open { transform: rotate(90deg); }
+  .event-name {
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .event-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .badge-count {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 12px;
+  }
+
+  .event-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hooks-container {
+    display: none;
+    border-top: 1px solid var(--border);
+  }
+  .hooks-container.open { display: block; }
+
+  /* Hook rows */
+  .hook-group {
+    border-bottom: 1px solid var(--border);
+  }
+  .hook-group:last-child { border-bottom: none; }
+
+  .hook-group-header {
+    padding: 10px 18px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .hook-matcher {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    color: var(--accent);
+  }
+  .hook-matcher-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-right: 6px;
+  }
+
+  .hook-item {
+    padding: 10px 18px 10px 36px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .hook-type-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .type-command { background: rgba(108,92,231,0.15); color: var(--accent); }
+  .type-prompt { background: var(--green-dim); color: var(--green); }
+
+  .hook-content {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    color: var(--text);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 120px;
+    overflow: hidden;
+    position: relative;
+  }
+  .hook-content.long::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 30px;
+    background: linear-gradient(transparent, var(--surface));
+  }
+
+  .hook-timeout {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .hook-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .no-hooks {
+    padding: 16px 18px;
+    color: var(--text-dim);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 640px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .modal h2 {
+    font-size: 16px;
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .form-group input:focus,
+  .form-group textarea:focus,
+  .form-group select:focus { border-color: var(--accent); }
+  .form-group select { cursor: pointer; }
+  .form-group textarea {
+    min-height: 150px;
+    resize: vertical;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .form-group .hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 12px;
+  }
+  .form-row .form-group { flex: 1; }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .delete-modal .modal { width: 420px; text-align: center; }
+  .delete-modal .modal h2 { color: var(--red); }
+  .delete-modal .modal-actions { justify-content: center; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 9999;
+    transition: transform 0.25s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  .var-hint {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin: 1px;
+    cursor: pointer;
+  }
+  .var-hint:hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128268;</span> Hooks Manager <span class="unsaved-dot" id="unsavedDot"></span></h1>
+  <div class="header-actions">
+    <button class="btn btn-primary" onclick="openAddModal()">+ New Hook</button>
+    <button class="btn btn-save" id="saveBtn" onclick="saveAll()" disabled>&#128190; Save Changes</button>
+  </div>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('hooks')</script>
+
+<div class="stats" id="stats"></div>
+
+<div class="content" id="content">
+  <div class="empty-state">
+    <div class="icon">&#128268;</div>
+    <div>Loading hooks...</div>
+  </div>
+</div>
+
+<!-- Add/Edit hook modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h2 id="editModalTitle">+ New Hook</h2>
+    <div class="form-group">
+      <label>Event Type</label>
+      <select id="hookEvent">
+        <option value="PreToolUse">PreToolUse — before a tool runs</option>
+        <option value="PostToolUse">PostToolUse — after a tool succeeds</option>
+        <option value="PostToolUseFailure">PostToolUseFailure — after a tool fails</option>
+        <option value="Notification">Notification — on notifications</option>
+        <option value="Stop">Stop — when agent stops</option>
+        <option value="SubagentStop">SubagentStop — when subagent stops</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Matcher (tool/command name to match)</label>
+      <input type="text" id="hookMatcher" placeholder="e.g. Bash, Read, Edit, or leave empty for all">
+      <div class="hint">Which tool triggers this hook. Leave empty to match all tools for this event.</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Hook Type</label>
+        <select id="hookType" onchange="onHookTypeChange()">
+          <option value="command">command — run a shell command</option>
+          <option value="prompt">prompt — send an LLM prompt</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Timeout (ms, optional)</label>
+        <input type="number" id="hookTimeout" placeholder="e.g. 10000">
+      </div>
+    </div>
+    <div class="form-group" id="commandGroup">
+      <label>Shell Command</label>
+      <textarea class="cm-editor" id="hookCommand" placeholder="e.g. echo &quot;Tool $TOOL_NAME was used&quot;" style="min-height:100px"></textarea>
+      <div class="hint">
+        Variables:
+        <span class="var-hint" onclick="insertVar('hookCommand','$TOOL_NAME')">$TOOL_NAME</span>
+        <span class="var-hint" onclick="insertVar('hookCommand','$ARGUMENTS')">$ARGUMENTS</span>
+        <span class="var-hint" onclick="insertVar('hookCommand','$OUTPUT')">$OUTPUT</span>
+        <span class="var-hint" onclick="insertVar('hookCommand','$ERROR')">$ERROR</span>
+      </div>
+    </div>
+    <div class="form-group" id="promptGroup" style="display:none">
+      <label>LLM Prompt</label>
+      <textarea class="cm-editor" id="hookPrompt" placeholder="Analyze the failure and suggest fixes. Input: $ARGUMENTS"></textarea>
+      <div class="hint">
+        Variables:
+        <span class="var-hint" onclick="insertVar('hookPrompt','$TOOL_NAME')">$TOOL_NAME</span>
+        <span class="var-hint" onclick="insertVar('hookPrompt','$ARGUMENTS')">$ARGUMENTS</span>
+        <span class="var-hint" onclick="insertVar('hookPrompt','$OUTPUT')">$OUTPUT</span>
+        <span class="var-hint" onclick="insertVar('hookPrompt','$ERROR')">$ERROR</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="editSaveBtn" onclick="addHook()">Add Hook</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="modal-overlay delete-modal" id="deleteModal">
+  <div class="modal">
+    <h2>Delete Hook</h2>
+    <p id="deleteMsg" style="margin-bottom:16px;color:var(--text-dim)"></p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = `http://localhost:${location.port || 3456}`;
+
+const EVENT_TYPES = {
+  PreToolUse:         { desc: 'Fires before a tool is executed', icon: '&#9654;' },
+  PostToolUse:        { desc: 'Fires after a tool succeeds', icon: '&#9989;' },
+  PostToolUseFailure: { desc: 'Fires when a tool fails', icon: '&#10060;' },
+  Notification:       { desc: 'Fires on notifications', icon: '&#128276;' },
+  Stop:               { desc: 'Fires when the agent stops', icon: '&#9209;' },
+  SubagentStop:       { desc: 'Fires when a subagent stops', icon: '&#9209;' }
+};
+
+let hooksData = {};   // { EventType: [ {matcher, hooks: [{type, command/prompt, timeout}]} ] }
+let hasUnsaved = false;
+let openSections = new Set();
+
+// For delete tracking
+let deleteTarget = null; // {event, groupIdx, hookIdx} or {event, groupIdx}
+
+async function init() {
+  try {
+    const resp = await fetch(API_BASE + '/api/hooks');
+    const result = await resp.json();
+    if (result.error) toast(result.error, true);
+    hooksData = result.hooks || {};
+    render();
+  } catch (e) {
+    document.getElementById('content').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">&#9888;</div>
+        <div>Cannot connect to server at ${API_BASE}</div>
+      </div>`;
+  }
+}
+
+function countHooks() {
+  let total = 0;
+  for (const event of Object.keys(hooksData)) {
+    for (const group of hooksData[event]) {
+      total += (group.hooks || []).length;
+    }
+  }
+  return total;
+}
+
+function render() {
+  const container = document.getElementById('content');
+  const statsEl = document.getElementById('stats');
+  const allEvents = new Set([...Object.keys(EVENT_TYPES), ...Object.keys(hooksData)]);
+  const total = countHooks();
+  const activeEvents = Object.keys(hooksData).filter(e => hooksData[e] && hooksData[e].length > 0).length;
+
+  statsEl.textContent = `${total} hook${total !== 1 ? 's' : ''} across ${activeEvents} event type${activeEvents !== 1 ? 's' : ''}`;
+
+  let html = '';
+
+  for (const event of allEvents) {
+    const groups = hooksData[event] || [];
+    const isOpen = openSections.has(event);
+    const hookCount = groups.reduce((s, g) => s + (g.hooks || []).length, 0);
+    const meta = EVENT_TYPES[event] || { desc: '', icon: '&#128268;' };
+
+    html += `
+      <div class="event-section">
+        <div class="event-header" onclick="toggleSection('${event}')">
+          <div class="event-info">
+            <span class="chevron ${isOpen ? 'open' : ''}">&#9654;</span>
+            <span class="event-name">${esc(event)}</span>
+            <span class="event-desc">${meta.desc}</span>
+            ${hookCount > 0 ? `<span class="badge-count">${hookCount} hook${hookCount !== 1 ? 's' : ''}</span>` : ''}
+          </div>
+          <div class="event-right">
+            <button class="btn btn-sm" onclick="event.stopPropagation(); openAddModalFor('${event}')">+ Add</button>
+          </div>
+        </div>
+        <div class="hooks-container ${isOpen ? 'open' : ''}">`;
+
+    if (groups.length === 0) {
+      html += '<div class="no-hooks">No hooks configured for this event</div>';
+    } else {
+      for (let gi = 0; gi < groups.length; gi++) {
+        const group = groups[gi];
+        const matcher = group.matcher || '(all)';
+        const hooks = group.hooks || [];
+
+        html += `
+          <div class="hook-group">
+            <div class="hook-group-header">
+              <div>
+                <span class="hook-matcher-label">Matcher:</span>
+                <span class="hook-matcher">${esc(matcher)}</span>
+              </div>
+              <div class="hook-actions">
+                <button class="btn btn-sm btn-danger" onclick="deleteGroup('${esc(event)}', ${gi})" title="Delete entire matcher group">&#128465;</button>
+              </div>
+            </div>`;
+
+        for (let hi = 0; hi < hooks.length; hi++) {
+          const h = hooks[hi];
+          const content = h.type === 'prompt' ? (h.prompt || '') : (h.command || '');
+          const isLong = content.split('\n').length > 4 || content.length > 200;
+
+          html += `
+            <div class="hook-item">
+              <span class="hook-type-badge ${h.type === 'prompt' ? 'type-prompt' : 'type-command'}">${esc(h.type)}</span>
+              <div class="hook-content ${isLong ? 'long' : ''}">${esc(content)}</div>
+              ${h.timeout ? `<span class="hook-timeout">${h.timeout}ms</span>` : ''}
+              <div class="hook-actions">
+                <button class="btn btn-sm" onclick="editHook('${esc(event)}', ${gi}, ${hi})" title="Edit">&#9998;</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteSingleHook('${esc(event)}', ${gi}, ${hi})" title="Delete">&#128465;</button>
+              </div>
+            </div>`;
+        }
+        html += '</div>';
+      }
+    }
+
+    html += '</div></div>';
+  }
+
+  container.innerHTML = html || '<div class="empty-state"><div class="icon">&#128268;</div><div>No hooks configured</div></div>';
+}
+
+function toggleSection(event) {
+  if (openSections.has(event)) openSections.delete(event);
+  else openSections.add(event);
+  render();
+}
+
+// ── Add / Edit ──
+let editingRef = null; // null = new, {event, gi, hi} = editing
+
+function openAddModal() {
+  editingRef = null;
+  document.getElementById('editModalTitle').textContent = '+ New Hook';
+  document.getElementById('editSaveBtn').textContent = 'Add Hook';
+  document.getElementById('hookEvent').value = 'PreToolUse';
+  document.getElementById('hookEvent').disabled = false;
+  document.getElementById('hookMatcher').value = '';
+  document.getElementById('hookType').value = 'command';
+  document.getElementById('hookTimeout').value = '';
+  document.getElementById('hookCommand').value = '';
+  document.getElementById('hookPrompt').value = '';
+  onHookTypeChange();
+  document.getElementById('editModal').classList.add('active');
+}
+
+function openAddModalFor(event) {
+  openAddModal();
+  document.getElementById('hookEvent').value = event;
+}
+
+function editHook(event, gi, hi) {
+  editingRef = { event, gi, hi };
+  const group = hooksData[event][gi];
+  const hook = group.hooks[hi];
+
+  document.getElementById('editModalTitle').textContent = 'Edit Hook';
+  document.getElementById('editSaveBtn').textContent = 'Save Changes';
+  document.getElementById('hookEvent').value = event;
+  document.getElementById('hookEvent').disabled = true;
+  document.getElementById('hookMatcher').value = group.matcher || '';
+  document.getElementById('hookType').value = hook.type || 'command';
+  document.getElementById('hookTimeout').value = hook.timeout || '';
+  document.getElementById('hookCommand').value = hook.command || '';
+  document.getElementById('hookPrompt').value = hook.prompt || '';
+  onHookTypeChange();
+  document.getElementById('editModal').classList.add('active');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('active');
+}
+
+function onHookTypeChange() {
+  const t = document.getElementById('hookType').value;
+  document.getElementById('commandGroup').style.display = t === 'command' ? 'block' : 'none';
+  document.getElementById('promptGroup').style.display = t === 'prompt' ? 'block' : 'none';
+}
+
+function addHook() {
+  const event = document.getElementById('hookEvent').value;
+  const matcher = document.getElementById('hookMatcher').value.trim();
+  const type = document.getElementById('hookType').value;
+  const timeout = parseInt(document.getElementById('hookTimeout').value) || undefined;
+  const command = document.getElementById('hookCommand').value;
+  const prompt = document.getElementById('hookPrompt').value;
+
+  const content = type === 'prompt' ? prompt : command;
+  if (!content.trim()) {
+    toast(`${type === 'prompt' ? 'Prompt' : 'Command'} is required`, true);
+    return;
+  }
+
+  const hookObj = { type };
+  if (type === 'prompt') hookObj.prompt = prompt;
+  else hookObj.command = command;
+  if (timeout) hookObj.timeout = timeout;
+
+  if (!hooksData[event]) hooksData[event] = [];
+
+  if (editingRef) {
+    // Editing existing
+    const group = hooksData[editingRef.event][editingRef.gi];
+    group.hooks[editingRef.hi] = hookObj;
+    // Update matcher if changed
+    if (matcher) group.matcher = matcher;
+    else delete group.matcher;
+  } else {
+    // Adding new — find or create matcher group
+    let group = hooksData[event].find(g => (g.matcher || '') === matcher);
+    if (!group) {
+      group = { hooks: [] };
+      if (matcher) group.matcher = matcher;
+      hooksData[event].push(group);
+    }
+    group.hooks.push(hookObj);
+  }
+
+  markUnsaved();
+  openSections.add(event);
+  closeEditModal();
+  render();
+  toast(editingRef ? 'Hook updated' : 'Hook added — click Save to persist');
+}
+
+// ── Delete ──
+function deleteGroup(event, gi) {
+  deleteTarget = { event, gi, type: 'group' };
+  const matcher = hooksData[event][gi].matcher || '(all)';
+  document.getElementById('deleteMsg').innerHTML =
+    `Delete <strong>all hooks</strong> for matcher "<strong>${esc(matcher)}</strong>" in <strong>${esc(event)}</strong>?`;
+  document.getElementById('deleteModal').classList.add('active');
+}
+
+function deleteSingleHook(event, gi, hi) {
+  deleteTarget = { event, gi, hi, type: 'hook' };
+  document.getElementById('deleteMsg').innerHTML =
+    `Delete this hook from <strong>${esc(event)}</strong>?`;
+  document.getElementById('deleteModal').classList.add('active');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('active');
+  deleteTarget = null;
+}
+
+function confirmDelete() {
+  if (!deleteTarget) return;
+  const { event, gi, hi, type } = deleteTarget;
+
+  if (type === 'group') {
+    hooksData[event].splice(gi, 1);
+    if (hooksData[event].length === 0) delete hooksData[event];
+  } else {
+    hooksData[event][gi].hooks.splice(hi, 1);
+    // Remove empty group
+    if (hooksData[event][gi].hooks.length === 0) {
+      hooksData[event].splice(gi, 1);
+      if (hooksData[event].length === 0) delete hooksData[event];
+    }
+  }
+
+  markUnsaved();
+  closeDeleteModal();
+  render();
+  toast('Hook deleted — click Save to persist');
+}
+
+// ── Save ──
+function markUnsaved() {
+  hasUnsaved = true;
+  document.getElementById('saveBtn').disabled = false;
+  document.getElementById('unsavedDot').classList.add('show');
+}
+
+async function saveAll() {
+  try {
+    const resp = await fetch(API_BASE + '/api/hooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hooks: hooksData })
+    });
+    const result = await resp.json();
+    if (result.error) { toast(result.error, true); return; }
+    hasUnsaved = false;
+    document.getElementById('saveBtn').disabled = true;
+    document.getElementById('unsavedDot').classList.remove('show');
+    toast('Hooks saved to settings.json');
+  } catch (e) {
+    toast('Save failed: ' + e.message, true);
+  }
+}
+
+// ── Helpers ──
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function toast(msg, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => el.className = 'toast', 3000);
+}
+
+function insertVar(textareaId, varName) {
+  const ta = document.getElementById(textareaId);
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + varName + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + varName.length;
+  ta.focus();
+}
+
+// Close modals on backdrop
+document.getElementById('editModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditModal(); });
+document.getElementById('deleteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeDeleteModal(); });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeEditModal(); closeDeleteModal(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (hasUnsaved) saveAll(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); openAddModal(); }
+});
+
+window.addEventListener('beforeunload', e => {
+  if (hasUnsaved) { e.preventDefault(); e.returnValue = ''; }
+});
+
+init();
+</script>
+</body>
+</html>

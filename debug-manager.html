@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debug Logs - Claude Code Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 0;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.header .icon {
+  margin-right: 8px;
+}
+
+.container {
+  padding: 20px 32px;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 20px;
+  height: calc(100vh - 140px);
+}
+
+/* Stats Summary */
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  padding: 0 32px 0;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-card .stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.stat-card .stat-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-card.errors .stat-value { color: var(--red); }
+.stat-card.warnings .stat-value { color: var(--orange); }
+.stat-card.files .stat-value { color: var(--accent); }
+
+/* File List Panel */
+.file-list-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-list-panel h2 {
+  padding: 16px 20px;
+  font-size: 1rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.file-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.file-item {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.file-item:hover {
+  background: var(--surface2);
+}
+
+.file-item.active {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent);
+}
+
+.file-item-name {
+  font-size: 0.85rem;
+  font-family: 'Consolas', 'Courier New', monospace;
+  word-break: break-all;
+  margin-bottom: 6px;
+}
+
+.file-item-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.badge.error {
+  background: rgba(231, 76, 60, 0.2);
+  color: var(--red);
+}
+
+.badge.warn {
+  background: rgba(243, 156, 18, 0.2);
+  color: var(--orange);
+}
+
+/* Log Viewer Panel */
+.log-viewer-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.log-toolbar {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.log-toolbar input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--text);
+  font-size: 0.85rem;
+  width: 220px;
+}
+
+.log-toolbar input[type="text"]::placeholder {
+  color: var(--text-dim);
+}
+
+.filter-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.filter-group label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.filter-group label:hover {
+  color: var(--text);
+}
+
+.filter-group input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.btn:hover { opacity: 0.85; }
+
+.btn.btn-red { background: var(--red); }
+
+.log-summary {
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  display: flex;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.log-summary span.err-count { color: var(--red); font-weight: 600; }
+.log-summary span.warn-count { color: var(--orange); font-weight: 600; }
+
+.log-content {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  padding: 0;
+}
+
+.log-line {
+  display: flex;
+  padding: 1px 0;
+  border-bottom: 1px solid rgba(46, 51, 69, 0.3);
+}
+
+.log-line:hover {
+  background: rgba(108, 92, 231, 0.05);
+}
+
+.line-num {
+  color: var(--text-dim);
+  min-width: 50px;
+  text-align: right;
+  padding: 0 12px 0 8px;
+  user-select: none;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.line-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding-right: 16px;
+}
+
+.log-line.level-ERROR .line-text { color: var(--red); }
+.log-line.level-WARNING .line-text, .log-line.level-WARN .line-text { color: var(--orange); }
+.log-line.level-DEBUG .line-text { color: var(--text-dim); opacity: 0.7; }
+.log-line.level-INFO .line-text { color: var(--text); }
+.log-line.level-STARTUP .line-text { color: var(--green); }
+
+.log-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128027;</span> Debug Logs</h1>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('debug')</script>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat-card files">
+    <div><div class="stat-value" id="statFiles">-</div><div class="stat-label">Log Files</div></div>
+  </div>
+  <div class="stat-card errors">
+    <div><div class="stat-value" id="statErrors">-</div><div class="stat-label">Total Errors</div></div>
+  </div>
+  <div class="stat-card warnings">
+    <div><div class="stat-value" id="statWarnings">-</div><div class="stat-label">Total Warnings</div></div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div style="display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--border);background:var(--surface)">
+  <button class="tab-btn active" id="tabLogs" onclick="switchDebugTab('logs')" style="padding:10px 20px;border:none;background:none;color:var(--accent);font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid var(--accent)">Log Viewer</button>
+  <button class="tab-btn" id="tabCommon" onclick="switchDebugTab('common')" style="padding:10px 20px;border:none;background:none;color:var(--text-dim);font-size:13px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent">Common Errors</button>
+</div>
+
+<!-- Common Errors Panel -->
+<div id="commonPanel" style="display:none;padding:20px 24px">
+  <div style="margin-bottom:16px;color:var(--text-dim);font-size:13px" id="commonStats">Analyzing logs...</div>
+  <div id="commonContent" style="display:grid;gap:12px"></div>
+</div>
+
+<div class="container" id="logsPanel">
+  <!-- File List -->
+  <div class="file-list-panel">
+    <h2>Log Files</h2>
+    <div class="file-list" id="fileList">
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Log Viewer -->
+  <div class="log-viewer-panel">
+    <div class="log-toolbar">
+      <input type="text" id="searchBox" placeholder="Search log lines..." oninput="renderLogLines()">
+      <div class="filter-group">
+        <label><input type="checkbox" checked data-level="ERROR" onchange="renderLogLines()"> ERROR</label>
+        <label><input type="checkbox" checked data-level="WARNING" onchange="renderLogLines()"> WARN</label>
+        <label><input type="checkbox" checked data-level="INFO" onchange="renderLogLines()"> INFO</label>
+        <label><input type="checkbox" checked data-level="DEBUG" onchange="renderLogLines()"> DEBUG</label>
+        <label><input type="checkbox" checked data-level="STARTUP" onchange="renderLogLines()"> STARTUP</label>
+      </div>
+      <button class="btn btn-red" onclick="scrollToFirstError()">Jump to Error</button>
+    </div>
+    <div class="log-summary" id="logSummary" style="display:none;">
+      <span>File: <strong id="summaryFile"></strong></span>
+      <span>Lines: <strong id="summaryLines"></strong></span>
+      <span class="err-count" id="summaryErrors"></span>
+      <span class="warn-count" id="summaryWarnings"></span>
+    </div>
+    <div class="log-content" id="logContent">
+      <div class="log-placeholder">Select a log file to view its contents</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://localhost:3456/api/debug';
+let currentLogs = [];
+let parsedLines = [];
+let currentFile = null;
+
+async function loadFileList() {
+  try {
+    const res = await fetch(API_BASE);
+    const data = await res.json();
+    const logs = data.logs || [];
+    currentLogs = logs;
+
+    // Stats
+    document.getElementById('statFiles').textContent = logs.length;
+    document.getElementById('statErrors').textContent = logs.reduce((s, l) => s + (l.errorCount || 0), 0);
+    document.getElementById('statWarnings').textContent = logs.reduce((s, l) => s + (l.warnCount || 0), 0);
+
+    const container = document.getElementById('fileList');
+    if (!logs.length) {
+      container.innerHTML = '<div class="loading">No log files found</div>';
+      return;
+    }
+
+    container.innerHTML = logs.map(log => {
+      const date = new Date(log.modified).toLocaleString();
+      const sizeKB = (log.size / 1024).toFixed(1);
+      return `<div class="file-item" data-file="${log.file}" onclick="loadLogFile('${log.file}', this)">
+        <div class="file-item-name">${log.file}</div>
+        <div class="file-item-meta">
+          <span>${date}</span>
+          <span>${sizeKB} KB</span>
+          <span>${log.lineCount} lines</span>
+          ${log.errorCount ? `<span class="badge error">${log.errorCount} errors</span>` : ''}
+          ${log.warnCount ? `<span class="badge warn">${log.warnCount} warns</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('fileList').innerHTML = '<div class="loading">Failed to load log files</div>';
+  }
+}
+
+function parseLevel(line) {
+  const m = line.match(/\[(\w+)\]/);
+  if (!m) return 'INFO';
+  const level = m[1].toUpperCase();
+  if (level === 'WARN') return 'WARNING';
+  return level;
+}
+
+async function loadLogFile(file, el) {
+  // Mark active
+  document.querySelectorAll('.file-item').forEach(e => e.classList.remove('active'));
+  if (el) el.classList.add('active');
+  currentFile = file;
+
+  document.getElementById('logContent').innerHTML = '<div class="loading">Loading log...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/content?file=${encodeURIComponent(file)}`);
+    const data = await res.json();
+    const text = data.content || '';
+    const lines = text.split('\n');
+
+    parsedLines = lines.map((line, i) => ({
+      num: i + 1,
+      text: line,
+      level: parseLevel(line)
+    }));
+
+    // Summary
+    const errCount = parsedLines.filter(l => l.level === 'ERROR').length;
+    const warnCount = parsedLines.filter(l => l.level === 'WARNING').length;
+    document.getElementById('logSummary').style.display = 'flex';
+    document.getElementById('summaryFile').textContent = file;
+    document.getElementById('summaryLines').textContent = parsedLines.length;
+    document.getElementById('summaryErrors').textContent = errCount ? `${errCount} errors` : '';
+    document.getElementById('summaryWarnings').textContent = warnCount ? `${warnCount} warnings` : '';
+
+    renderLogLines();
+  } catch (e) {
+    document.getElementById('logContent').innerHTML = '<div class="loading">Failed to load log content</div>';
+  }
+}
+
+function renderLogLines() {
+  const search = document.getElementById('searchBox').value.toLowerCase();
+  const enabledLevels = new Set();
+  document.querySelectorAll('.filter-group input[type="checkbox"]').forEach(cb => {
+    if (cb.checked) {
+      const lvl = cb.dataset.level;
+      enabledLevels.add(lvl);
+      if (lvl === 'WARNING') enabledLevels.add('WARN');
+    }
+  });
+
+  const filtered = parsedLines.filter(line => {
+    const lvl = line.level === 'WARNING' ? 'WARNING' : line.level;
+    if (!enabledLevels.has(lvl) && !enabledLevels.has(line.level)) {
+      // Check if level matches any enabled
+      let match = false;
+      for (const el of enabledLevels) {
+        if (line.level === el || line.level === 'WARN' && el === 'WARNING') { match = true; break; }
+      }
+      if (!match) return false;
+    }
+    if (search && !line.text.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const container = document.getElementById('logContent');
+  // Use document fragment for performance
+  const fragment = document.createDocumentFragment();
+
+  filtered.forEach(line => {
+    const div = document.createElement('div');
+    const levelClass = line.level === 'WARNING' ? 'WARNING' : line.level;
+    div.className = `log-line level-${levelClass}`;
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'line-num';
+    numSpan.textContent = line.num;
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'line-text';
+    textSpan.textContent = line.text;
+
+    div.appendChild(numSpan);
+    div.appendChild(textSpan);
+    fragment.appendChild(div);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(fragment);
+}
+
+function scrollToFirstError() {
+  const errorLine = document.querySelector('.log-line.level-ERROR');
+  if (errorLine) {
+    errorLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    errorLine.style.outline = '2px solid var(--red)';
+    setTimeout(() => errorLine.style.outline = '', 2000);
+  }
+}
+
+function switchDebugTab(tab) {
+  document.getElementById('logsPanel').style.display = tab === 'logs' ? 'flex' : 'none';
+  document.getElementById('commonPanel').style.display = tab === 'common' ? 'block' : 'none';
+  document.getElementById('tabLogs').style.color = tab === 'logs' ? 'var(--accent)' : 'var(--text-dim)';
+  document.getElementById('tabLogs').style.borderBottomColor = tab === 'logs' ? 'var(--accent)' : 'transparent';
+  document.getElementById('tabCommon').style.color = tab === 'common' ? 'var(--accent)' : 'var(--text-dim)';
+  document.getElementById('tabCommon').style.borderBottomColor = tab === 'common' ? 'var(--accent)' : 'transparent';
+  if (tab === 'common' && !commonLoaded) loadCommonErrors();
+}
+
+let commonLoaded = false;
+
+async function loadCommonErrors() {
+  try {
+    const res = await fetch('http://localhost:3456/api/debug/common-errors');
+    const data = await res.json();
+    commonLoaded = true;
+
+    document.getElementById('commonStats').innerHTML =
+      `Scanned <strong>${data.filesScanned}</strong> log files &middot; <strong>${data.totalErrors}</strong> total errors/warnings &middot; <strong>${data.commonErrors.length}</strong> unique patterns`;
+
+    const container = document.getElementById('commonContent');
+    if (!data.commonErrors.length) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim)">No errors found across log files</div>';
+      return;
+    }
+
+    container.innerHTML = data.commonErrors.map((err, i) => {
+      const levelColor = err.level === 'ERROR' ? 'var(--red)' : 'var(--orange)';
+      const lastSeen = new Date(err.lastSeen).toLocaleDateString();
+      const barWidth = Math.min((err.count / data.commonErrors[0].count) * 100, 100);
+
+      return `<div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${levelColor};border-radius:var(--radius);padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:${err.level==='ERROR'?'var(--red)':'var(--orange)'};color:#fff;font-weight:600">${err.level}</span>
+            <span style="font-size:12px;color:var(--text-dim)">#${i+1}</span>
+          </div>
+          <div style="display:flex;gap:12px;font-size:12px;color:var(--text-dim)">
+            <span title="Occurrences"><strong style="color:var(--text)">${err.count}x</strong> occurrences</span>
+            <span title="Found in files">in <strong style="color:var(--text)">${err.fileCount}</strong> file${err.fileCount>1?'s':''}</span>
+            <span>last: ${lastSeen}</span>
+          </div>
+        </div>
+        <div style="font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;color:var(--text);line-height:1.5;word-break:break-all;margin-bottom:8px">${esc(err.sample)}</div>
+        <div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden">
+          <div style="height:100%;width:${barWidth}%;background:${levelColor};border-radius:3px"></div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    document.getElementById('commonContent').innerHTML = '<div style="color:var(--red)">Failed to load: ' + e.message + '</div>';
+  }
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+loadFileList();
+</script>
+</body>
+</html>

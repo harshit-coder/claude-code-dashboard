@@ -1,0 +1,641 @@
+<!--
+  =============================================================================
+  Model Manager — OpenRouter Integration
+  =============================================================================
+  PURPOSE:
+    Browse OpenRouter models, create aliases for quick access, manage API keys.
+
+  HOW TO USE:
+    Start the server:  node mcp-manager-server.js
+    Open http://localhost:3456/models in your browser.
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Model Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header h1 .icon { margin-right: 6px; }
+  .header p { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+
+  .content { padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title .badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); color: #fff; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { background: var(--red); border-color: var(--red); color: #fff; }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .input-group { margin-bottom: 14px; }
+  .input-group label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .input-group input, .input-group select {
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .input-group input:focus, .input-group select:focus {
+    border-color: var(--accent);
+  }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 200px; }
+
+  .status-msg {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  .status-msg.success { display: block; background: rgba(0,184,148,0.12); color: var(--green); border: 1px solid rgba(0,184,148,0.25); }
+  .status-msg.error { display: block; background: rgba(231,76,60,0.12); color: var(--red); border: 1px solid rgba(231,76,60,0.25); }
+
+  .alias-list { display: flex; flex-direction: column; gap: 8px; }
+  .alias-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .alias-info { flex: 1; min-width: 200px; }
+  .alias-name { font-weight: 600; font-size: 14px; color: var(--green); font-family: 'Consolas', monospace; }
+  .alias-model { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+  .alias-path { font-size: 11px; color: var(--text-dim); opacity: 0.7; margin-top: 2px; font-family: 'Consolas', monospace; }
+
+  .empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  .info-box {
+    background: rgba(108,92,231,0.08);
+    border: 1px solid rgba(108,92,231,0.2);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+  .info-box code {
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  .model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+  }
+  .model-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: border-color 0.15s;
+  }
+  .model-card:hover { border-color: var(--accent); }
+  .model-card-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; word-break: break-all; }
+  .model-card-id { font-size: 11px; color: var(--text-dim); font-family: 'Consolas', monospace; margin-bottom: 10px; word-break: break-all; }
+  .model-card-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
+  .model-card-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .model-card-actions { display: flex; gap: 8px; }
+
+  .tag { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 8px; font-weight: 500; }
+  .tag-free { background: rgba(0,184,148,0.15); color: var(--green); }
+  .tag-ctx { background: rgba(108,92,231,0.15); color: var(--accent); }
+
+  .search-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .search-bar input {
+    flex: 1;
+    min-width: 200px;
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar select {
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .loading { text-align: center; padding: 24px; color: var(--text-dim); }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .key-row { display: flex; gap: 10px; align-items: flex-end; }
+  .key-row .input-group { flex: 1; margin-bottom: 0; }
+
+  .masked-key { font-family: 'Consolas', monospace; font-size: 13px; color: var(--text-dim); letter-spacing: 1px; }
+
+  .model-count { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('models')</script>
+
+<div class="header">
+  <div>
+    <h1><span class="icon">&#129302;</span> Model Manager</h1>
+    <p>Browse OpenRouter models, create aliases for quick terminal access</p>
+  </div>
+  <button class="btn" onclick="refreshAll()">&#8635; Refresh</button>
+</div>
+
+<div class="content">
+
+  <!-- Section 1: Current Setup -->
+  <div class="section">
+    <div class="section-title">&#9881; Current Setup</div>
+    <div class="input-group">
+      <label>Default Model (from Claude config)</label>
+      <input type="text" id="defaultModel" readonly placeholder="Loading..." style="opacity:0.7;">
+    </div>
+    <div class="key-row">
+      <div class="input-group">
+        <label>OpenRouter API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." autocomplete="off">
+      </div>
+      <button class="btn" onclick="toggleKeyVisibility()" id="toggleKeyBtn" title="Show/hide key">&#128065;</button>
+      <button class="btn" onclick="saveApiKey()">Save</button>
+      <button class="btn-primary btn" onclick="testConnection()">Test Connection</button>
+    </div>
+    <div id="setupStatus" class="status-msg"></div>
+  </div>
+
+  <!-- Section 2: Your Aliases -->
+  <div class="section">
+    <div class="section-title">&#128196; Your Aliases <span class="badge" id="aliasCount">0</span></div>
+    <div id="aliasesList" class="alias-list">
+      <div class="loading"><span class="spinner"></span> Loading aliases...</div>
+    </div>
+    <div class="info-box" id="aliasInfo" style="display:none;">
+      <strong>How to use aliases:</strong><br>
+      Type the alias name (e.g. <code>claude-minimax</code>) directly in your terminal to launch Claude Code with that model.<br><br>
+      <strong>Add to PATH:</strong> Add the aliases directory to your system PATH so aliases are recognized globally:<br>
+      <code id="aliasDirPath">...</code>
+    </div>
+  </div>
+
+  <!-- Section 3: Create New Alias -->
+  <div class="section" id="createAliasSection">
+    <div class="section-title">&#10133; Create New Alias</div>
+    <div class="row">
+      <div class="input-group">
+        <label>Alias Name</label>
+        <input type="text" id="newAliasName" placeholder="e.g. claude-minimax">
+      </div>
+      <div class="input-group">
+        <label>Model (select or type ID)</label>
+        <input type="text" id="newAliasModel" list="modelDatalist" placeholder="Search or paste model ID...">
+        <datalist id="modelDatalist"></datalist>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>API Key Override (optional — leave blank to use default)</label>
+      <input type="password" id="newAliasKey" placeholder="sk-or-v1-..." autocomplete="off">
+    </div>
+    <button class="btn btn-primary" onclick="createAlias()">Create Alias</button>
+    <div id="createStatus" class="status-msg"></div>
+  </div>
+
+  <!-- Section 4: Browse Models -->
+  <div class="section">
+    <div class="section-title">&#127758; Browse Models <span class="badge" id="modelCount">0</span></div>
+    <div class="search-bar">
+      <input type="text" id="modelSearch" placeholder="Search models by name or ID..." oninput="filterModels()">
+      <select id="modelFilter" onchange="filterModels()">
+        <option value="all">All Models</option>
+        <option value="free">Free Models</option>
+        <option value="large-ctx">Large Context (100k+)</option>
+        <option value="huge-ctx">Huge Context (500k+)</option>
+      </select>
+    </div>
+    <div class="model-count" id="modelCountText">Loading models...</div>
+    <div id="modelGrid" class="model-grid">
+      <div class="loading"><span class="spinner"></span> Fetching models from OpenRouter...</div>
+    </div>
+  </div>
+
+  <!-- Section 5: How It Works -->
+  <div class="section">
+    <div class="section-title">&#128161; How It Works</div>
+    <div class="info-box" style="margin-top:0;">
+      <strong>OpenRouter</strong> is a unified API that lets you access 200+ LLMs from one endpoint.
+      By pairing it with Claude Code, you can swap models on the fly.<br><br>
+
+      <strong>Manual usage:</strong><br>
+      <code>claude --model openrouter/model-id</code><br><br>
+
+      <strong>Aliases:</strong> create <code>.bat</code> / <code>.sh</code> shortcut files so you can simply type
+      <code>claude-gpt4</code> or <code>claude-gemini</code> in your terminal.<br><br>
+
+      <strong>Pricing:</strong> OpenRouter shows per-token pricing. "Prompt" = input tokens, "Completion" = output tokens. Models marked <span class="tag tag-free">FREE</span> have no per-token cost.
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '';
+let allModels = [];
+let keyVisible = false;
+
+// --- Init ---
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('openrouter_api_key');
+  if (saved) document.getElementById('apiKeyInput').value = saved;
+  refreshAll();
+});
+
+function refreshAll() {
+  loadAliases();
+  loadModels();
+  loadDefaultModel();
+}
+
+// --- API Key ---
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { showStatus('setupStatus', 'Please enter an API key.', 'error'); return; }
+  localStorage.setItem('openrouter_api_key', key);
+  showStatus('setupStatus', 'API key saved to localStorage.', 'success');
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById('apiKeyInput');
+  keyVisible = !keyVisible;
+  inp.type = keyVisible ? 'text' : 'password';
+}
+
+async function testConnection() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { showStatus('setupStatus', 'Enter an API key first.', 'error'); return; }
+  showStatus('setupStatus', 'Testing...', 'success');
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models', {
+      headers: { 'Authorization': 'Bearer ' + key }
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const count = d.data ? d.data.length : '?';
+      showStatus('setupStatus', `Connection successful! ${count} models available.`, 'success');
+    } else {
+      showStatus('setupStatus', `Connection failed: HTTP ${r.status}`, 'error');
+    }
+  } catch (e) {
+    showStatus('setupStatus', 'Connection error: ' + e.message, 'error');
+  }
+}
+
+// --- Default Model ---
+async function loadDefaultModel() {
+  try {
+    const r = await fetch(API + '/api/config');
+    if (r.ok) {
+      const d = await r.json();
+      const model = d.config?.model || d.model || 'Not set';
+      document.getElementById('defaultModel').value = model;
+    }
+  } catch {
+    document.getElementById('defaultModel').value = 'Could not load config';
+  }
+}
+
+// --- Aliases ---
+async function loadAliases() {
+  const el = document.getElementById('aliasesList');
+  try {
+    const r = await fetch(API + '/api/models/aliases');
+    const d = await r.json();
+    const aliases = d.aliases || [];
+    document.getElementById('aliasCount').textContent = aliases.length;
+
+    if (d.aliasDir) {
+      document.getElementById('aliasDirPath').textContent = d.aliasDir;
+      document.getElementById('aliasInfo').style.display = 'block';
+    }
+
+    if (aliases.length === 0) {
+      el.innerHTML = '<div class="empty-state">No aliases created yet. Use the form below or click "Create Alias" on any model.</div>';
+      return;
+    }
+
+    el.innerHTML = aliases.map(a => `
+      <div class="alias-item">
+        <div class="alias-info">
+          <div class="alias-name">${esc(a.name || a.file)}</div>
+          <div class="alias-model">Model: ${esc(a.model || 'unknown')}</div>
+          <div class="alias-path">${esc(a.path || '')}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteAlias('${esc(a.name || a.file)}')">Delete</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state" style="color:var(--red)">Failed to load aliases: ${esc(e.message)}</div>`;
+  }
+}
+
+async function deleteAlias(name) {
+  if (!confirm(`Delete alias "${name}"?`)) return;
+  try {
+    const r = await fetch(API + '/api/models/delete-alias', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const d = await r.json();
+    if (d.success) loadAliases();
+    else alert('Failed: ' + (d.error || 'Unknown error'));
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+// --- Create Alias ---
+async function createAlias() {
+  const aliasName = document.getElementById('newAliasName').value.trim();
+  const modelId = document.getElementById('newAliasModel').value.trim();
+  const apiKey = document.getElementById('newAliasKey').value.trim();
+
+  if (!aliasName) { showStatus('createStatus', 'Alias name is required.', 'error'); return; }
+  if (!modelId) { showStatus('createStatus', 'Model ID is required.', 'error'); return; }
+
+  const body = { aliasName, modelId };
+  if (apiKey) body.apiKey = apiKey;
+
+  try {
+    const r = await fetch(API + '/api/models/create-alias', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.success) {
+      showStatus('createStatus', `Alias "${d.aliasName}" created at ${d.path}`, 'success');
+      document.getElementById('newAliasName').value = '';
+      document.getElementById('newAliasModel').value = '';
+      document.getElementById('newAliasKey').value = '';
+      loadAliases();
+    } else {
+      showStatus('createStatus', 'Failed: ' + (d.error || 'Unknown error'), 'error');
+    }
+  } catch (e) {
+    showStatus('createStatus', 'Error: ' + e.message, 'error');
+  }
+}
+
+function prefillAlias(modelId, modelName) {
+  const sec = document.getElementById('createAliasSection');
+  sec.scrollIntoView({ behavior: 'smooth' });
+  // Suggest alias name from model name
+  const suggested = 'claude-' + (modelName || modelId).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 30);
+  document.getElementById('newAliasName').value = suggested;
+  document.getElementById('newAliasModel').value = modelId;
+  document.getElementById('newAliasName').focus();
+}
+
+// --- Models ---
+async function loadModels() {
+  const grid = document.getElementById('modelGrid');
+  try {
+    const r = await fetch(API + '/api/models/list');
+    const d = await r.json();
+    allModels = d.models || [];
+    document.getElementById('modelCount').textContent = allModels.length;
+    populateDatalist();
+    filterModels();
+  } catch (e) {
+    grid.innerHTML = `<div class="empty-state" style="color:var(--red)">Failed to load models: ${esc(e.message)}</div>`;
+  }
+}
+
+function populateDatalist() {
+  const dl = document.getElementById('modelDatalist');
+  dl.innerHTML = allModels.slice(0, 500).map(m => `<option value="${esc(m.id)}">${esc(m.name || m.id)}</option>`).join('');
+}
+
+function filterModels() {
+  const q = document.getElementById('modelSearch').value.toLowerCase();
+  const filter = document.getElementById('modelFilter').value;
+
+  let filtered = allModels;
+
+  if (q) {
+    filtered = filtered.filter(m =>
+      (m.name || '').toLowerCase().includes(q) ||
+      (m.id || '').toLowerCase().includes(q)
+    );
+  }
+
+  if (filter === 'free') {
+    filtered = filtered.filter(m => isFree(m));
+  } else if (filter === 'large-ctx') {
+    filtered = filtered.filter(m => (m.context_length || 0) >= 100000);
+  } else if (filter === 'huge-ctx') {
+    filtered = filtered.filter(m => (m.context_length || 0) >= 500000);
+  }
+
+  document.getElementById('modelCountText').textContent = `Showing ${filtered.length} of ${allModels.length} models`;
+
+  const grid = document.getElementById('modelGrid');
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="empty-state">No models match your search.</div>';
+    return;
+  }
+
+  // Only render first 60 for performance
+  const toShow = filtered.slice(0, 60);
+  grid.innerHTML = toShow.map(m => {
+    const promptPrice = formatPrice(m.pricing?.prompt);
+    const compPrice = formatPrice(m.pricing?.completion);
+    const ctx = m.context_length ? formatCtx(m.context_length) : '?';
+    const free = isFree(m);
+    const bigCtx = (m.context_length || 0) >= 100000;
+
+    return `
+      <div class="model-card">
+        <div class="model-card-name">${esc(m.name || m.id)}</div>
+        <div class="model-card-id">${esc(m.id)}</div>
+        <div class="model-card-meta">
+          <span>&#128218; ${ctx} ctx</span>
+          <span>&#9650; ${promptPrice}/tok</span>
+          <span>&#9660; ${compPrice}/tok</span>
+          ${free ? '<span class="tag tag-free">FREE</span>' : ''}
+          ${bigCtx ? '<span class="tag tag-ctx">100k+</span>' : ''}
+        </div>
+        <div class="model-card-actions">
+          <button class="btn btn-sm btn-primary" onclick="prefillAlias('${esc(m.id)}', '${esc(m.name || '')}')">Create Alias</button>
+          <button class="btn btn-sm" onclick="copyText('claude --model ${esc(m.id)}')">Copy Command</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (filtered.length > 60) {
+    grid.innerHTML += `<div class="empty-state" style="grid-column:1/-1">Showing 60 of ${filtered.length} results. Refine your search to see more.</div>`;
+  }
+}
+
+// --- Helpers ---
+function isFree(m) {
+  if (!m.pricing) return false;
+  return (parseFloat(m.pricing.prompt) === 0 && parseFloat(m.pricing.completion) === 0);
+}
+
+function formatPrice(p) {
+  if (p === undefined || p === null) return '?';
+  const n = parseFloat(p);
+  if (n === 0) return 'Free';
+  if (n < 0.000001) return '<$0.000001';
+  return '$' + n.toFixed(6);
+}
+
+function formatCtx(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return Math.round(n / 1000) + 'k';
+  return n.toString();
+}
+
+function showStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function copyText(text) {
+  if (window.electronAPI?.isElectron && text.startsWith('claude ')) {
+    runInTerminal(text);
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    // brief visual feedback
+  }).catch(() => {
+    prompt('Copy this command:', text);
+  });
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backups Manager</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232735;--border:#2e3345;--text:#e1e4ed;--text-dim:#8b8fa3;--accent:#6c5ce7;--green:#00b894;--red:#e74c3c;--orange:#f39c12;--radius:10px}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{padding:24px 32px 16px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:1.6rem;font-weight:700;display:flex;align-items:center;gap:10px}
+.header h1 .icon{font-size:1.8rem}
+.nav-bar{padding:0 32px 16px}
+.toolbar{padding:8px 32px 20px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.btn{padding:10px 20px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.875rem;font-weight:600;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#5a4bd4;transform:translateY(-1px)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{background:#00a383}
+.btn-red{background:var(--red);color:#fff}
+.btn-red:hover{background:#c0392b}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-sm{padding:6px 14px;font-size:.8rem}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:0 32px 32px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:all .2s;cursor:pointer;position:relative}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.card.invalid{border-color:var(--red)}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.card-title{font-size:.95rem;font-weight:600;word-break:break-all;flex:1;margin-right:8px}
+.badges{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.badge{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.badge-valid{background:rgba(0,184,148,.15);color:var(--green)}
+.badge-invalid{background:rgba(231,76,60,.15);color:var(--red)}
+.badge-config{background:rgba(108,92,231,.15);color:var(--accent)}
+.badge-backup{background:rgba(243,156,18,.15);color:var(--orange)}
+.badge-settings{background:rgba(0,184,148,.15);color:var(--green)}
+.card-meta{display:flex;flex-direction:column;gap:6px;font-size:.8rem;color:var(--text-dim)}
+.card-meta span{display:flex;align-items:center;gap:6px}
+.card-actions{display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.loading{text-align:center;padding:60px;color:var(--text-dim);font-size:1rem}
+.empty{text-align:center;padding:60px;color:var(--text-dim)}
+.empty-icon{font-size:3rem;margin-bottom:12px}
+
+/* Toast */
+.toast-container{position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:14px 20px;border-radius:var(--radius);color:#fff;font-size:.875rem;font-weight:500;animation:slideIn .3s ease;min-width:280px;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;align-items:center;gap:10px}
+.toast-success{background:var(--green)}
+.toast-error{background:var(--red)}
+.toast-info{background:var(--accent)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;max-width:560px;width:90%;max-height:80vh;display:flex;flex-direction:column;animation:scaleIn .2s}
+.modal h2{font-size:1.1rem;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.modal-body{flex:1;overflow-y:auto;margin-bottom:20px}
+.modal-body pre{background:var(--bg);padding:16px;border-radius:var(--radius);font-size:.8rem;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-dim);max-height:400px;overflow-y:auto;border:1px solid var(--border)}
+.modal-body p{color:var(--text-dim);font-size:.9rem;line-height:1.6}
+.modal-body .restore-path{margin-top:12px}
+.modal-body .restore-path label{display:block;font-size:.8rem;color:var(--text-dim);margin-bottom:6px}
+.modal-body .restore-path input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:.85rem;outline:none}
+.modal-body .restore-path input:focus{border-color:var(--accent)}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#128451;</span> Backups Manager</h1></div>
+<div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('backups')</script>
+
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="loadBackups()">&#8635; Refresh</button>
+  <a href="http://localhost:3456/api/export" class="btn btn-green" download>&#128230; Export All Configs</a>
+</div>
+
+<div id="content"><div class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading backups...</p></div></div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const API = 'http://localhost:3456/api';
+
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation = 'slideOut .3s ease forwards'; setTimeout(() => t.remove(), 300); }, 3500);
+}
+
+function showModal(html, onClose) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal">' + html + '</div>';
+  overlay.addEventListener('click', e => { if (e.target === overlay) { overlay.remove(); if (onClose) onClose(); } });
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function closeModal(el) {
+  const overlay = el.closest('.modal-overlay');
+  if (overlay) overlay.remove();
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+function formatDate(d) {
+  if (!d) return 'Unknown';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' +
+         dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function typeBadge(type) {
+  const cls = type === 'config' ? 'badge-config' : type === 'backup' ? 'badge-backup' : 'badge-settings';
+  return '<span class="badge ' + cls + '">' + (type || 'unknown') + '</span>';
+}
+
+function validBadge(valid) {
+  return valid
+    ? '<span class="badge badge-valid">&#10003; Valid</span>'
+    : '<span class="badge badge-invalid">&#9888; Invalid</span>';
+}
+
+async function loadBackups() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div><p style="margin-top:12px">Loading backups...</p></div>';
+  try {
+    const res = await fetch(API + '/backups');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const backups = data.backups || [];
+    if (!backups.length) {
+      content.innerHTML = '<div class="empty"><div class="empty-icon">&#128451;</div><p>No backups found</p></div>';
+      return;
+    }
+    let html = '<div class="cards">';
+    backups.forEach(b => {
+      html += '<div class="card ' + (b.valid ? '' : 'invalid') + '">' +
+        '<div class="card-header">' +
+          '<div class="card-title">' + escHtml(b.file) + '</div>' +
+          '<div class="badges">' + validBadge(b.valid) + typeBadge(b.type) + '</div>' +
+        '</div>' +
+        '<div class="card-meta">' +
+          '<span>&#128197; ' + formatDate(b.modified) + '</span>' +
+          '<span>&#128190; ' + formatSize(b.size) + '</span>' +
+          '<span style="font-size:.75rem;color:var(--text-dim);opacity:.7;word-break:break-all">' + escHtml(b.path) + '</span>' +
+        '</div>' +
+        '<div class="card-actions">' +
+          '<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();viewContent(\'' + escAttr(b.path) + '\',\'' + escAttr(b.file) + '\')">&#128065; View</button>' +
+          '<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();confirmRestore(\'' + escAttr(b.path) + '\',\'' + escAttr(b.file) + '\')">&#128260; Restore</button>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div class="empty"><div class="empty-icon">&#9888;&#65039;</div><p>Failed to load backups</p><p style="color:var(--text-dim);font-size:.85rem;margin-top:8px">' + escHtml(e.message) + '</p></div>';
+    showToast('Failed to load backups: ' + e.message, 'error');
+  }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+async function viewContent(filePath, fileName) {
+  const overlay = showModal(
+    '<h2>&#128196; ' + escHtml(fileName) + '</h2>' +
+    '<div class="modal-body"><div class="loading"><div class="spinner"></div></div></div>' +
+    '<div class="modal-footer"><button class="btn btn-ghost btn-sm" onclick="closeModal(this)">Close</button></div>'
+  );
+  try {
+    const res = await fetch(API + '/backups/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const body = overlay.querySelector('.modal-body');
+    const content = typeof data.content === 'string' ? data.content : JSON.stringify(data.content, null, 2);
+    body.innerHTML = '<pre>' + escHtml(content) + '</pre>';
+  } catch (e) {
+    const body = overlay.querySelector('.modal-body');
+    body.innerHTML = '<p style="color:var(--red)">Failed to load content: ' + escHtml(e.message) + '</p>';
+    showToast('Failed to load content', 'error');
+  }
+}
+
+function confirmRestore(filePath, fileName) {
+  const overlay = showModal(
+    '<h2>&#128260; Restore Backup</h2>' +
+    '<div class="modal-body">' +
+      '<p>Are you sure you want to restore <strong>' + escHtml(fileName) + '</strong>?</p>' +
+      '<p style="margin-top:8px;color:var(--orange)">&#9888; This will overwrite the target configuration file.</p>' +
+      '<div class="restore-path">' +
+        '<label for="targetPath">Target path (leave empty for default):</label>' +
+        '<input type="text" id="targetPath" placeholder="Optional target path...">' +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      '<button class="btn btn-ghost btn-sm" onclick="closeModal(this)">Cancel</button>' +
+      '<button class="btn btn-red btn-sm" id="restoreBtn" onclick="doRestore(this,\'' + escAttr(filePath) + '\')">&#128260; Restore</button>' +
+    '</div>'
+  );
+}
+
+async function doRestore(btnEl, filePath) {
+  const overlay = btnEl.closest('.modal-overlay');
+  const targetPath = overlay.querySelector('#targetPath').value.trim();
+  const btn = overlay.querySelector('#restoreBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Restoring...';
+  try {
+    const body = { filePath };
+    if (targetPath) body.targetPath = targetPath;
+    const res = await fetch(API + '/backups/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    overlay.remove();
+    showToast('Backup restored successfully!', 'success');
+    loadBackups();
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '&#128260; Restore';
+    showToast('Restore failed: ' + e.message, 'error');
+  }
+}
+
+loadBackups();
+</script>
+</body>
+</html>

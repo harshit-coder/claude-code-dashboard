@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keybindings Editor</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.header {
+  padding: 24px 32px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header .icon { font-size: 1.8rem; }
+.nav-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+}
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.toolbar .info {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.toolbar .info .path {
+  color: var(--accent);
+  font-family: monospace;
+}
+.btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: opacity 0.2s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover { opacity: 0.85; }
+.btn:active { transform: scale(0.97); }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-red { background: var(--red); color: #fff; }
+.btn-orange { background: var(--orange); color: #fff; }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+.btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+
+/* Table */
+.kb-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.kb-table th, .kb-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.kb-table th {
+  background: var(--surface2);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.kb-table tr:last-child td { border-bottom: none; }
+.kb-table tr:hover td { background: rgba(108, 92, 231, 0.05); }
+.kbd {
+  display: inline-block;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.command-name {
+  font-family: monospace;
+  color: var(--green);
+}
+.when-tag {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--orange);
+}
+.actions { display: flex; gap: 6px; }
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-dim);
+}
+.empty-state p { margin-top: 8px; font-size: 0.9rem; }
+.unsaved-banner {
+  display: none;
+  background: rgba(243, 156, 18, 0.15);
+  border: 1px solid var(--orange);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  color: var(--orange);
+  align-items: center;
+  justify-content: space-between;
+}
+.unsaved-banner.show { display: flex; }
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal h2 {
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+}
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.form-group input, .form-group select {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-group input:focus, .form-group select:focus {
+  border-color: var(--accent);
+}
+.form-group .hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* Defaults section */
+.defaults-section {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.defaults-section h3 {
+  font-size: 1rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+.toast {
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  color: #fff;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+.toast.info { background: var(--accent); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 48px;
+  color: var(--text-dim);
+}
+.spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#9000;</span> Keybindings Editor</h1></div>
+<div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('keybindings')</script>
+
+<div class="container">
+  <div class="toolbar">
+    <div class="info">Config: <span class="path" id="configPath">--</span></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="loadDefaults()">Load Defaults</button>
+      <button class="btn btn-accent" onclick="openModal()">+ Add Keybinding</button>
+      <button class="btn btn-green" id="saveBtn" onclick="saveKeybindings()">Save</button>
+    </div>
+  </div>
+
+  <div class="unsaved-banner" id="unsavedBanner">
+    <span>You have unsaved changes</span>
+    <button class="btn btn-orange btn-sm" onclick="saveKeybindings()">Save Now</button>
+  </div>
+
+  <div id="content">
+    <div class="loading"><div class="spinner"></div><div>Loading keybindings...</div></div>
+  </div>
+
+  <div class="defaults-section">
+    <h3>Common Defaults</h3>
+    <table class="kb-table">
+      <thead><tr><th>Key</th><th>Command</th><th>When</th><th></th></tr></thead>
+      <tbody id="defaultsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h2 id="modalTitle">Add Keybinding</h2>
+    <div class="form-group">
+      <label>Key Combination</label>
+      <input type="text" id="inputKey" placeholder="e.g. ctrl+s, escape, ctrl+shift+p">
+      <div class="hint">Use lowercase. Modifiers: ctrl, shift, alt, meta. Separate with +</div>
+    </div>
+    <div class="form-group">
+      <label>Command</label>
+      <input type="text" id="inputCommand" placeholder="e.g. submit, cancel, close">
+    </div>
+    <div class="form-group">
+      <label>When (optional)</label>
+      <input type="text" id="inputWhen" placeholder="e.g. chatInput, editorFocus">
+      <div class="hint">Condition when this keybinding is active. Leave blank for always.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" id="modalSaveBtn" onclick="saveModal()">Add</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+const API = 'http://localhost:3456/api/keybindings';
+let keybindings = [];
+let originalJson = '';
+let editIndex = -1;
+
+const DEFAULTS = [
+  { key: 'ctrl+c', command: 'cancel', when: '' },
+  { key: 'ctrl+s', command: 'submit', when: 'chatInput' },
+  { key: 'escape', command: 'close', when: '' },
+  { key: 'ctrl+l', command: 'clear', when: '' },
+  { key: 'up', command: 'historyPrevious', when: 'chatInput' },
+  { key: 'down', command: 'historyNext', when: 'chatInput' },
+  { key: 'ctrl+shift+p', command: 'commandPalette', when: '' },
+  { key: 'tab', command: 'acceptSuggestion', when: 'chatInput' },
+];
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function markDirty() {
+  const dirty = JSON.stringify(keybindings) !== originalJson;
+  document.getElementById('unsavedBanner').classList.toggle('show', dirty);
+}
+
+async function fetchKeybindings() {
+  try {
+    const res = await fetch(API);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    keybindings = data.keybindings || [];
+    originalJson = JSON.stringify(keybindings);
+    document.getElementById('configPath').textContent = data.path || '--';
+    render();
+    toast('Keybindings loaded', 'success');
+  } catch (e) {
+    document.getElementById('content').innerHTML =
+      '<div class="empty-state"><h3>Could not load keybindings</h3><p>' + e.message + '</p></div>';
+    toast('Failed to load: ' + e.message, 'error');
+  }
+}
+
+function render() {
+  if (keybindings.length === 0) {
+    document.getElementById('content').innerHTML =
+      '<div class="empty-state"><h3>No keybindings configured</h3><p>Click "Add Keybinding" or "Load Defaults" to get started.</p></div>';
+    return;
+  }
+  let html = '<table class="kb-table"><thead><tr><th>Key</th><th>Command</th><th>When</th><th style="width:120px">Actions</th></tr></thead><tbody>';
+  keybindings.forEach((kb, i) => {
+    html += '<tr>'
+      + '<td><span class="kbd">' + esc(kb.key) + '</span></td>'
+      + '<td><span class="command-name">' + esc(kb.command) + '</span></td>'
+      + '<td>' + (kb.when ? '<span class="when-tag">' + esc(kb.when) + '</span>' : '<span style="color:var(--text-dim)">--</span>') + '</td>'
+      + '<td class="actions">'
+      + '<button class="btn btn-ghost btn-sm" onclick="editKb(' + i + ')">Edit</button>'
+      + '<button class="btn btn-red btn-sm" onclick="deleteKb(' + i + ')">Del</button>'
+      + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('content').innerHTML = html;
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function openModal(idx) {
+  editIndex = typeof idx === 'number' ? idx : -1;
+  document.getElementById('modalTitle').textContent = editIndex >= 0 ? 'Edit Keybinding' : 'Add Keybinding';
+  document.getElementById('modalSaveBtn').textContent = editIndex >= 0 ? 'Update' : 'Add';
+  if (editIndex >= 0) {
+    const kb = keybindings[editIndex];
+    document.getElementById('inputKey').value = kb.key;
+    document.getElementById('inputCommand').value = kb.command;
+    document.getElementById('inputWhen').value = kb.when || '';
+  } else {
+    document.getElementById('inputKey').value = '';
+    document.getElementById('inputCommand').value = '';
+    document.getElementById('inputWhen').value = '';
+  }
+  document.getElementById('modalOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('inputKey').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  editIndex = -1;
+}
+
+function saveModal() {
+  const key = document.getElementById('inputKey').value.trim();
+  const command = document.getElementById('inputCommand').value.trim();
+  const when = document.getElementById('inputWhen').value.trim();
+  if (!key || !command) {
+    toast('Key and Command are required', 'error');
+    return;
+  }
+  const obj = { key, command };
+  if (when) obj.when = when;
+  if (editIndex >= 0) {
+    keybindings[editIndex] = obj;
+    toast('Keybinding updated', 'info');
+  } else {
+    keybindings.push(obj);
+    toast('Keybinding added', 'info');
+  }
+  closeModal();
+  render();
+  markDirty();
+}
+
+function editKb(i) { openModal(i); }
+
+function deleteKb(i) {
+  const kb = keybindings[i];
+  if (!confirm('Delete keybinding "' + kb.key + '" -> "' + kb.command + '"?')) return;
+  keybindings.splice(i, 1);
+  render();
+  markDirty();
+  toast('Keybinding removed', 'info');
+}
+
+async function saveKeybindings() {
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keybindings })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    originalJson = JSON.stringify(keybindings);
+    markDirty();
+    toast('Keybindings saved!', 'success');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'error');
+  }
+}
+
+function loadDefaults() {
+  if (keybindings.length > 0 && !confirm('This will replace all current keybindings with defaults. Continue?')) return;
+  keybindings = JSON.parse(JSON.stringify(DEFAULTS));
+  render();
+  markDirty();
+  toast('Defaults loaded (unsaved)', 'info');
+}
+
+function addDefault(key, command, when) {
+  const exists = keybindings.some(kb => kb.key === key && kb.command === command);
+  if (exists) { toast('Already exists', 'info'); return; }
+  const obj = { key, command };
+  if (when) obj.when = when;
+  keybindings.push(obj);
+  render();
+  markDirty();
+  toast('Added ' + key + ' -> ' + command, 'info');
+}
+
+// Render defaults reference table
+(function renderDefaults() {
+  let html = '';
+  DEFAULTS.forEach(d => {
+    html += '<tr>'
+      + '<td><span class="kbd">' + esc(d.key) + '</span></td>'
+      + '<td><span class="command-name">' + esc(d.command) + '</span></td>'
+      + '<td>' + (d.when ? '<span class="when-tag">' + esc(d.when) + '</span>' : '<span style="color:var(--text-dim)">--</span>') + '</td>'
+      + '<td><button class="btn btn-ghost btn-sm" onclick="addDefault(\'' + d.key + "','" + d.command + "','" + (d.when||'') + '\')">+ Add</button></td>'
+      + '</tr>';
+  });
+  document.getElementById('defaultsBody').innerHTML = html;
+})();
+
+// Unsaved changes warning
+window.addEventListener('beforeunload', e => {
+  if (JSON.stringify(keybindings) !== originalJson) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// Keyboard shortcut: Escape to close modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+fetchKeybindings();
+</script>
+</body>
+</html>

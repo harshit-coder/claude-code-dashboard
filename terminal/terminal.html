@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal — Claude Code Dashboard</title>
+<link rel="stylesheet" href="/vendor/xterm.css">
+<link rel="stylesheet" href="/terminal/terminal.css">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.header { padding: 24px 32px 0; }
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header h1 .icon { font-size: 1.6rem; }
+.nav-bar { padding: 0 32px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span class="icon">&#128187;</span> Terminal</h1>
+  </div>
+  <nav class="nav-bar" id="mainNav"></nav>
+
+  <!-- No Electron fallback -->
+  <div class="no-electron" id="noElectron">
+    <div class="icon">&#128187;</div>
+    <h2>Terminal requires the Desktop App</h2>
+    <p>The embedded terminal is only available in the Electron desktop app. In the web version, commands are copied to your clipboard.</p>
+    <p>Run the desktop app with: <code>npm run electron</code></p>
+  </div>
+
+  <!-- Terminal UI (hidden until Electron detected) -->
+  <div id="terminalUI" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+    <div class="tab-bar" id="tabBar">
+      <button class="tab-new" id="newTabBtn" title="New Terminal">+</button>
+    </div>
+    <div class="terminal-wrapper" id="terminalWrapper"></div>
+    <div class="status-bar">
+      <div class="status-left">
+        <span class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Ready</span>
+        </span>
+        <span id="shellInfo"></span>
+      </div>
+      <div class="status-right">
+        <span id="termSize"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/nav.js"></script>
+  <script src="/vendor/xterm.js"></script>
+  <script src="/vendor/xterm-addon-fit.js"></script>
+  <script src="/vendor/xterm-addon-web-links.js"></script>
+  <script>
+    renderNav('terminal');
+
+    // ── State ─────────────────────────────────────────────────────
+    const tabs = []; // { id, termId, xterm, fitAddon, tabEl, containerEl }
+    let activeTabIdx = -1;
+
+    // ── Check Electron ────────────────────────────────────────────
+    if (window.electronAPI?.isElectron) {
+      document.getElementById('noElectron').style.display = 'none';
+      const termUI = document.getElementById('terminalUI');
+      termUI.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow:hidden;';
+      // Small delay to let layout settle before creating terminal
+      setTimeout(() => initTerminal(), 200);
+    }
+
+    async function initTerminal() {
+      // Check URL params for auto-run command
+      const params = new URLSearchParams(window.location.search);
+      const autoCmd = params.get('cmd') || null;
+      const autoCwd = params.get('cwd') || undefined;
+
+      // Create first tab (with command if provided)
+      await createTab(autoCmd, autoCwd);
+
+      // New tab button
+      document.getElementById('newTabBtn').addEventListener('click', () => createTab());
+
+      // Listen for terminal exits
+      window.electronAPI.onTerminalExit((id, code) => {
+        const tab = tabs.find(t => t.termId === id);
+        if (tab) {
+          tab.xterm.writeln(`\r\n\x1b[90m[Process exited with code ${code}]\x1b[0m`);
+          updateStatus(id, 'disconnected');
+        }
+      });
+
+      // Handle resize — both window resize and container resize
+      const resizeHandler = () => {
+        const tab = tabs[activeTabIdx];
+        if (tab && tab.fitAddon) {
+          tab.fitAddon.fit();
+        }
+      };
+      window.addEventListener('resize', resizeHandler);
+
+      // ResizeObserver for when the container layout changes
+      const ro = new ResizeObserver(resizeHandler);
+      ro.observe(document.getElementById('terminalWrapper'));
+    }
+
+    async function createTab(cmd, cwd) {
+      // Create PTY
+      const result = await window.electronAPI.createTerminal({ cwd });
+      if (result.error) {
+        alert('Failed to create terminal: ' + result.error);
+        return;
+      }
+
+      const termId = result.id;
+
+      // Create xterm instance
+      const xterm = new window.Terminal({
+        theme: {
+          background: '#0f1117',
+          foreground: '#e1e4ed',
+          cursor: '#6c5ce7',
+          cursorAccent: '#0f1117',
+          selectionBackground: 'rgba(108, 92, 231, 0.3)',
+          black: '#0f1117',
+          red: '#e74c3c',
+          green: '#00b894',
+          yellow: '#f39c12',
+          blue: '#6c5ce7',
+          magenta: '#a855f7',
+          cyan: '#00cec9',
+          white: '#e1e4ed',
+          brightBlack: '#636e72',
+          brightRed: '#ff6b6b',
+          brightGreen: '#55efc4',
+          brightYellow: '#ffeaa7',
+          brightBlue: '#a29bfe',
+          brightMagenta: '#d63384',
+          brightCyan: '#81ecec',
+          brightWhite: '#ffffff',
+        },
+        fontSize: 14,
+        fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+        cursorBlink: true,
+        cursorStyle: 'block',
+        scrollback: 10000,
+        allowProposedApi: true,
+      });
+
+      const fitAddon = new window.FitAddon.FitAddon();
+      xterm.loadAddon(fitAddon);
+
+      try {
+        const webLinksAddon = new window.WebLinksAddon.WebLinksAddon();
+        xterm.loadAddon(webLinksAddon);
+      } catch (e) { /* optional */ }
+
+      // Create container
+      const container = document.createElement('div');
+      container.className = 'terminal-instance';
+      container.id = `term-${termId}`;
+      document.getElementById('terminalWrapper').appendChild(container);
+
+      // Open xterm in container
+      xterm.open(container);
+      // Fit after container is rendered and visible
+      setTimeout(() => {
+        fitAddon.fit();
+        // Fit again after a longer delay to catch late layout changes
+        setTimeout(() => fitAddon.fit(), 300);
+      }, 150);
+
+      // Wire data
+      xterm.onData((data) => {
+        window.electronAPI.writeTerminal(termId, data);
+      });
+
+      // Receive data from PTY
+      const removeDataListener = window.electronAPI.onTerminalData((id, data) => {
+        if (id === termId) {
+          xterm.write(data);
+        }
+      });
+
+      // Resize PTY on xterm resize
+      xterm.onResize(({ cols, rows }) => {
+        window.electronAPI.resizeTerminal(termId, cols, rows);
+        document.getElementById('termSize').textContent = `${cols}x${rows}`;
+      });
+
+      // Create tab element
+      const tabEl = document.createElement('div');
+      tabEl.className = 'tab';
+      tabEl.innerHTML = `<span class="tab-title">${result.title || 'Terminal'}</span><span class="tab-close">&times;</span>`;
+
+      // Insert before the + button
+      const newTabBtn = document.getElementById('newTabBtn');
+      newTabBtn.parentNode.insertBefore(tabEl, newTabBtn);
+
+      const tabObj = { id: tabs.length, termId, xterm, fitAddon, tabEl, containerEl: container, removeDataListener };
+      tabs.push(tabObj);
+
+      // Tab click
+      tabEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-close')) {
+          closeTab(tabObj);
+        } else {
+          switchTab(tabObj.id);
+        }
+      });
+
+      // Switch to new tab
+      switchTab(tabObj.id);
+
+      // Run command if provided
+      if (cmd) {
+        setTimeout(() => {
+          window.electronAPI.writeTerminal(termId, cmd + '\r');
+        }, 600);
+      }
+
+      return tabObj;
+    }
+
+    function switchTab(idx) {
+      // Deactivate current
+      if (activeTabIdx >= 0 && tabs[activeTabIdx]) {
+        tabs[activeTabIdx].tabEl.classList.remove('active');
+        tabs[activeTabIdx].containerEl.classList.remove('active');
+      }
+
+      activeTabIdx = idx;
+      const tab = tabs[idx];
+      if (!tab) return;
+
+      tab.tabEl.classList.add('active');
+      tab.containerEl.classList.add('active');
+
+      // Fit and focus
+      setTimeout(() => {
+        tab.fitAddon.fit();
+        tab.xterm.focus();
+      }, 50);
+
+      updateStatus(tab.termId, 'connected');
+    }
+
+    function closeTab(tab) {
+      // Close PTY
+      window.electronAPI.closeTerminal(tab.termId);
+
+      // Cleanup
+      tab.xterm.dispose();
+      tab.tabEl.remove();
+      tab.containerEl.remove();
+      if (tab.removeDataListener) tab.removeDataListener();
+
+      const idx = tabs.indexOf(tab);
+      tabs.splice(idx, 1);
+
+      // Re-index
+      tabs.forEach((t, i) => t.id = i);
+
+      // Switch to another tab or create new one
+      if (tabs.length === 0) {
+        activeTabIdx = -1;
+        createTab();
+      } else {
+        switchTab(Math.min(idx, tabs.length - 1));
+      }
+    }
+
+    function updateStatus(termId, status) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (status === 'connected') {
+        dot.className = 'status-dot';
+        text.textContent = 'Connected';
+      } else {
+        dot.className = 'status-dot disconnected';
+        text.textContent = 'Disconnected';
+      }
+    }
+
+    // URL params are now handled in initTerminal() above
+  </script>
+</body>
+</html>

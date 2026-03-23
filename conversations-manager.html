@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversations</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 24px 32px 16px;
+}
+
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header h1 .icon {
+  font-size: 1.4rem;
+}
+
+.main-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 120px);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 340px;
+  min-width: 340px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.sidebar-controls {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-controls input {
+  width: 100%;
+  padding: 9px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.sidebar-controls input:focus {
+  border-color: var(--accent);
+}
+
+.sidebar-controls input::placeholder {
+  color: var(--text-dim);
+}
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.session-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.session-item:hover {
+  background: var(--surface2);
+}
+
+.session-item.active {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent);
+}
+
+.session-project {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.session-date {
+  font-size: 0.75rem;
+}
+
+.session-count {
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+}
+
+.session-item.active .session-count {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Chat area */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-controls {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-controls input {
+  flex: 1;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.chat-controls input:focus {
+  border-color: var(--accent);
+}
+
+.chat-controls input::placeholder {
+  color: var(--text-dim);
+}
+
+.match-info {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+/* Message bubbles */
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  max-width: 80%;
+}
+
+.msg-row.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.msg-row.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.msg-bubble {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.msg-row.user .msg-bubble {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+
+.msg-row.assistant .msg-bubble {
+  background: var(--surface2);
+  color: var(--text);
+  border-bottom-left-radius: 3px;
+}
+
+.msg-timestamp {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.msg-bubble mark {
+  background: var(--orange);
+  color: #000;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Token badge */
+.token-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+  padding: 2px 8px;
+  background: var(--surface);
+  border-radius: 8px;
+}
+
+.token-badge span {
+  opacity: 0.7;
+}
+
+/* Collapsible blocks */
+.collapsible {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.collapsible-header {
+  padding: 7px 12px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  color: var(--text-dim);
+}
+
+.collapsible-header:hover {
+  background: var(--surface2);
+}
+
+.collapsible-header .arrow {
+  transition: transform 0.2s;
+  font-size: 0.65rem;
+}
+
+.collapsible.open .collapsible-header .arrow {
+  transform: rotate(90deg);
+}
+
+.collapsible-body {
+  display: none;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  background: var(--bg);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 400px;
+  overflow-y: auto;
+  color: var(--text-dim);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.collapsible.open .collapsible-body {
+  display: block;
+}
+
+.collapsible.tool-use .collapsible-header {
+  color: var(--green);
+}
+
+.collapsible.tool-result .collapsible-header {
+  color: var(--orange);
+}
+
+.collapsible.thinking .collapsible-header {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.collapsible.thinking .collapsible-body {
+  color: #6b6f82;
+}
+
+/* Markdown-ish rendering */
+.msg-bubble code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.83em;
+}
+
+.msg-bubble pre {
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 6px 0;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.82em;
+  white-space: pre;
+}
+
+.msg-bubble pre code {
+  background: none;
+  padding: 0;
+}
+
+.msg-bubble strong { font-weight: 700; }
+.msg-bubble em { font-style: italic; }
+
+.msg-bubble h1, .msg-bubble h2, .msg-bubble h3 {
+  margin: 8px 0 4px;
+  font-weight: 700;
+}
+.msg-bubble h1 { font-size: 1.15em; }
+.msg-bubble h2 { font-size: 1.05em; }
+.msg-bubble h3 { font-size: 0.95em; }
+
+.msg-bubble ul, .msg-bubble ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Session Stats Panel */
+.session-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100px;
+}
+
+.stat-card .stat-label {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-card .stat-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stat-card .stat-value.cost {
+  color: var(--green);
+}
+
+/* Files Changed Panel */
+.files-changed {
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.files-changed-header {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.files-changed-summary {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.files-changed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.file-entry {
+  font-size: 0.78rem;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.file-entry .file-icon {
+  font-size: 0.75rem;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.file-entry .file-icon.edit { color: var(--orange); }
+.file-entry .file-icon.write { color: var(--green); }
+.file-entry .file-icon.read { color: var(--text-dim); }
+
+.file-entry .file-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Export button */
+.btn-export {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+  display: none;
+}
+
+.btn-export:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--green);
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* Session item topic heading */
+.session-topic {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-project {
+  font-size: 0.72rem;
+}
+
+/* Session item action buttons */
+.session-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.session-actions button {
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text-dim);
+  transition: background 0.15s, color 0.15s;
+}
+
+.session-actions button:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.session-actions .btn-delete {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.session-actions .btn-delete:hover {
+  background: var(--red);
+  color: #fff;
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 8px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128488;</span> Conversations</h1>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('conversations')</script>
+
+<div class="main-layout">
+  <div class="sidebar">
+    <div class="sidebar-controls">
+      <input type="text" id="projectFilter" placeholder="Filter by project name...">
+    </div>
+    <div class="session-list" id="sessionList">
+      <div class="loading"><div class="spinner"></div><br>Loading sessions...</div>
+    </div>
+  </div>
+
+  <div class="chat-area">
+    <div class="chat-controls">
+      <input type="text" id="msgSearch" placeholder="Search messages..." disabled>
+      <span class="match-info" id="matchInfo"></span>
+      <button class="btn-export" id="btnExport" title="Export as Markdown">Export .md</button>
+    </div>
+    <div id="sessionStats" class="session-stats" style="display:none;"></div>
+    <div id="filesChanged" class="files-changed" style="display:none;"></div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="empty-state">Select a session to view the conversation</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3456/api/conversations';
+let allSessions = [];
+let activeSessionEl = null;
+let currentMessages = [];
+let currentProjectKey = '';
+let currentSessionId = '';
+
+// --- Load sessions ---
+async function loadSessions() {
+  try {
+    const res = await fetch(API);
+    const data = await res.json();
+    allSessions = (data.sessions || []).sort((a, b) => new Date(b.modified || b.lastTimestamp) - new Date(a.modified || a.lastTimestamp));
+    renderSessionList();
+  } catch (e) {
+    document.getElementById('sessionList').innerHTML = '<div class="loading" style="color:var(--red)">Failed to load sessions</div>';
+  }
+}
+
+function renderSessionList() {
+  const filter = document.getElementById('projectFilter').value.toLowerCase();
+  const filtered = allSessions.filter(s => !filter || (s.project || '').toLowerCase().includes(filter));
+  const container = document.getElementById('sessionList');
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="loading">No sessions found</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map((s, i) => {
+    const date = formatDate(s.lastTimestamp || s.modified);
+    const project = s.project || s.projectKey || 'Unknown';
+    const topic = s.firstMessage ? esc(s.firstMessage.length > 60 ? s.firstMessage.substring(0, 60) + '...' : s.firstMessage) : esc(project);
+    return `<div class="session-item" data-idx="${i}" data-project="${esc(s.projectKey || s.project)}" data-id="${esc(s.sessionId)}">
+      <div class="session-topic" title="${esc(s.firstMessage || project)}">${topic}</div>
+      <div class="session-project" title="${esc(project)}">${esc(project)}</div>
+      <div class="session-meta">
+        <span class="session-date">${date}</span>
+        <span class="session-count">${s.messageCount || 0} msgs</span>
+      </div>
+      <div class="session-actions">
+        <button class="btn-resume" data-sid="${esc(s.sessionId)}" data-project="${esc(s.project)}" title="Copy resume command">Resume</button>
+        <button class="btn-delete" data-project="${esc(s.projectKey || s.project)}" data-sid="${esc(s.sessionId)}" title="Delete session">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.querySelectorAll('.session-item').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.session-actions')) return;
+      if (activeSessionEl) activeSessionEl.classList.remove('active');
+      el.classList.add('active');
+      activeSessionEl = el;
+      loadConversation(el.dataset.project, el.dataset.id);
+    });
+  });
+
+  container.querySelectorAll('.btn-resume').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const proj = btn.dataset.project || '';
+      const sid = btn.dataset.sid || '';
+      const cmd = proj ? 'cd "' + proj + '"; claude --resume ' + sid : 'claude --resume ' + sid;
+      if (window.electronAPI?.isElectron) {
+        runInTerminal(cmd, proj || undefined);
+      } else {
+        navigator.clipboard.writeText(cmd).then(() => showToast('Copied! Paste in terminal to resume this chat.'));
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm('Delete this session? This cannot be undone.')) return;
+      try {
+        await fetch(API + '/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project: btn.dataset.project, id: btn.dataset.sid })
+        });
+        loadSessions();
+      } catch (err) {
+        showToast('Failed to delete session');
+      }
+    });
+  });
+}
+
+// --- Load conversation ---
+async function loadConversation(project, sessionId) {
+  const chatEl = document.getElementById('chatMessages');
+  chatEl.innerHTML = '<div class="loading"><div class="spinner"></div><br>Loading conversation...</div>';
+  document.getElementById('msgSearch').disabled = false;
+  document.getElementById('msgSearch').value = '';
+  document.getElementById('matchInfo').textContent = '';
+
+  currentProjectKey = project;
+  currentSessionId = sessionId;
+
+  try {
+    const res = await fetch(`${API}/session?project=${encodeURIComponent(project)}&id=${encodeURIComponent(sessionId)}`);
+    const data = await res.json();
+    currentMessages = data.messages || [];
+    renderMessages(currentMessages);
+    renderSessionStats(currentMessages);
+    renderFilesChanged(currentMessages);
+    document.getElementById('btnExport').style.display = 'inline-block';
+  } catch (e) {
+    chatEl.innerHTML = '<div class="loading" style="color:var(--red)">Failed to load conversation</div>';
+    document.getElementById('sessionStats').style.display = 'none';
+    document.getElementById('filesChanged').style.display = 'none';
+  }
+}
+
+// --- Session Stats ---
+function renderSessionStats(messages) {
+  let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate = 0;
+  let userCount = 0, assistantCount = 0;
+
+  messages.forEach(m => {
+    const role = m.type || (m.message && m.message.role) || 'assistant';
+    if (role === 'user') userCount++;
+    else assistantCount++;
+
+    const usage = m.message ? m.message.usage : null;
+    if (usage) {
+      totalInput += usage.input_tokens || 0;
+      totalOutput += usage.output_tokens || 0;
+      totalCacheRead += usage.cache_read_input_tokens || 0;
+      totalCacheCreate += usage.cache_creation_input_tokens || 0;
+    }
+  });
+
+  // Cost calculation
+  let pricing;
+  try {
+    const stored = localStorage.getItem('claude-cost-pricing');
+    pricing = stored ? JSON.parse(stored) : null;
+  } catch (e) { pricing = null; }
+
+  const inputRate = (pricing && pricing.input) || 3;   // $/M tokens
+  const outputRate = (pricing && pricing.output) || 15; // $/M tokens
+
+  const cost = (totalInput / 1e6) * inputRate + (totalOutput / 1e6) * outputRate;
+
+  const el = document.getElementById('sessionStats');
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="stat-card"><span class="stat-label">Input Tokens</span><span class="stat-value">${fmtNum(totalInput)}</span></div>
+    <div class="stat-card"><span class="stat-label">Output Tokens</span><span class="stat-value">${fmtNum(totalOutput)}</span></div>
+    <div class="stat-card"><span class="stat-label">Cache Read</span><span class="stat-value">${fmtNum(totalCacheRead)}</span></div>
+    <div class="stat-card"><span class="stat-label">Cache Create</span><span class="stat-value">${fmtNum(totalCacheCreate)}</span></div>
+    <div class="stat-card"><span class="stat-label">Est. Cost</span><span class="stat-value cost">$${cost.toFixed(4)}</span></div>
+    <div class="stat-card"><span class="stat-label">Messages</span><span class="stat-value">${userCount + assistantCount} <span style="font-size:0.7rem;font-weight:400;color:var(--text-dim)">(${userCount}U / ${assistantCount}A)</span></span></div>
+  `;
+}
+
+// --- Files Changed ---
+function renderFilesChanged(messages) {
+  const fileMap = {}; // path -> Set of operations
+
+  messages.forEach(m => {
+    const role = m.type || (m.message && m.message.role) || 'assistant';
+    if (role !== 'assistant' && role !== 'human') return;
+    const content = m.message ? m.message.content : null;
+    if (!Array.isArray(content)) return;
+
+    content.forEach(block => {
+      if (block.type === 'tool_use' && ['Edit', 'Write', 'Read'].includes(block.name)) {
+        const fp = block.input && block.input.file_path;
+        if (fp) {
+          if (!fileMap[fp]) fileMap[fp] = new Set();
+          fileMap[fp].add(block.name);
+        }
+      }
+    });
+  });
+
+  const entries = Object.entries(fileMap);
+  const el = document.getElementById('filesChanged');
+
+  if (!entries.length) {
+    el.style.display = 'none';
+    return;
+  }
+
+  let editCount = 0, writeCount = 0, readCount = 0;
+  entries.forEach(([, ops]) => {
+    if (ops.has('Edit')) editCount++;
+    if (ops.has('Write')) writeCount++;
+    if (ops.has('Read')) readCount++;
+  });
+
+  const summaryParts = [];
+  if (editCount) summaryParts.push(`${editCount} file${editCount > 1 ? 's' : ''} edited`);
+  if (writeCount) summaryParts.push(`${writeCount} file${writeCount > 1 ? 's' : ''} created`);
+  if (readCount) summaryParts.push(`${readCount} file${readCount > 1 ? 's' : ''} read`);
+
+  const iconMap = { Edit: ['&#9998;', 'edit'], Write: ['+', 'write'], Read: ['&#128065;', 'read'] };
+
+  const fileListHtml = entries.map(([path, ops]) => {
+    // Pick most significant operation for icon: Edit > Write > Read
+    const op = ops.has('Edit') ? 'Edit' : ops.has('Write') ? 'Write' : 'Read';
+    const [icon, cls] = iconMap[op];
+    return `<div class="file-entry"><span class="file-icon ${cls}">${icon}</span><span class="file-path" title="${esc(path)}">${esc(path)}</span></div>`;
+  }).join('');
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="files-changed-header">Files Changed</div>
+    <div class="files-changed-summary">${summaryParts.join(', ')}</div>
+    <div class="files-changed-list">${fileListHtml}</div>
+  `;
+}
+
+// --- Export button ---
+document.getElementById('btnExport').addEventListener('click', function() {
+  if (currentProjectKey && currentSessionId) {
+    window.location = '/api/conversations/export?project=' + encodeURIComponent(currentProjectKey) + '&id=' + encodeURIComponent(currentSessionId);
+  }
+});
+
+// --- Render messages ---
+function renderMessages(messages, highlight) {
+  const chatEl = document.getElementById('chatMessages');
+  if (!messages.length) {
+    chatEl.innerHTML = '<div class="empty-state">No messages in this session</div>';
+    return;
+  }
+
+  chatEl.innerHTML = messages.map(m => {
+    const role = m.type || (m.message && m.message.role) || 'assistant';
+    const ts = m.timestamp ? formatTime(m.timestamp) : '';
+
+    if (role === 'user') {
+      return renderUserMessage(m, ts, highlight);
+    } else {
+      return renderAssistantMessage(m, ts, highlight);
+    }
+  }).join('');
+
+  // Wire up collapsibles
+  chatEl.querySelectorAll('.collapsible-header').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('open'));
+  });
+}
+
+function renderUserMessage(m, ts, hl) {
+  const content = m.message ? m.message.content : '';
+  let html = '';
+
+  if (typeof content === 'string') {
+    html = `<div class="msg-bubble">${highlightText(esc(content), hl)}</div>`;
+  } else if (Array.isArray(content)) {
+    const parts = content.map(part => {
+      if (part.type === 'tool_result') {
+        const body = typeof part.content === 'string' ? part.content :
+          Array.isArray(part.content) ? part.content.map(c => c.text || JSON.stringify(c)).join('\n') :
+          JSON.stringify(part.content, null, 2);
+        return collapsibleBlock('tool-result', `Tool Result (${esc(part.tool_use_id || '').substring(0, 12)}...)`, esc(body));
+      }
+      if (typeof part === 'string') return `<div class="msg-bubble">${highlightText(esc(part), hl)}</div>`;
+      if (part.type === 'text') return `<div class="msg-bubble">${highlightText(esc(part.text || ''), hl)}</div>`;
+      return '';
+    });
+    html = parts.join('');
+  }
+
+  return `<div class="msg-row user">${html}<div class="msg-timestamp">${ts}</div></div>`;
+}
+
+function renderAssistantMessage(m, ts, hl) {
+  const content = m.message ? m.message.content : '';
+  const usage = m.message ? m.message.usage : null;
+  let parts = '';
+
+  if (Array.isArray(content)) {
+    parts = content.map(block => {
+      if (block.type === 'text' && block.text) {
+        return `<div class="msg-bubble">${highlightText(renderMarkdown(esc(block.text)), hl)}</div>`;
+      }
+      if (block.type === 'tool_use') {
+        const inputStr = JSON.stringify(block.input || {}, null, 2);
+        return collapsibleBlock('tool-use', `Tool: ${esc(block.name)}`, esc(inputStr));
+      }
+      if (block.type === 'thinking' && block.thinking) {
+        return collapsibleBlock('thinking', "Claude's thinking", esc(block.thinking));
+      }
+      return '';
+    }).join('');
+  } else if (typeof content === 'string') {
+    parts = `<div class="msg-bubble">${highlightText(renderMarkdown(esc(content)), hl)}</div>`;
+  }
+
+  let tokenHtml = '';
+  if (usage) {
+    const inp = usage.input_tokens || 0;
+    const out = usage.output_tokens || 0;
+    const cached = usage.cache_read_input_tokens || 0;
+    const created = usage.cache_creation_input_tokens || 0;
+    tokenHtml = `<div class="token-badge">
+      <span>In: ${fmtNum(inp)}</span>
+      <span>Out: ${fmtNum(out)}</span>
+      ${cached ? `<span>Cache: ${fmtNum(cached)}</span>` : ''}
+      ${created ? `<span>CacheW: ${fmtNum(created)}</span>` : ''}
+    </div>`;
+  }
+
+  return `<div class="msg-row assistant">${parts}<div class="msg-timestamp">${ts}${tokenHtml}</div></div>`;
+}
+
+function collapsibleBlock(cls, title, body) {
+  return `<div class="collapsible ${cls}">
+    <div class="collapsible-header"><span class="arrow">&#9654;</span> ${title}</div>
+    <div class="collapsible-body">${body}</div>
+  </div>`;
+}
+
+// --- Markdown-ish rendering ---
+function renderMarkdown(html) {
+  // Code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  return html;
+}
+
+// --- Search within conversation ---
+document.getElementById('msgSearch').addEventListener('input', function() {
+  const q = this.value.trim();
+  if (!q) {
+    renderMessages(currentMessages);
+    document.getElementById('matchInfo').textContent = '';
+    return;
+  }
+
+  const ql = q.toLowerCase();
+  const matched = currentMessages.filter(m => {
+    const content = m.message ? m.message.content : '';
+    return msgContains(content, ql);
+  });
+
+  document.getElementById('matchInfo').textContent = `${matched.length} / ${currentMessages.length} messages`;
+  renderMessages(matched, q);
+});
+
+function msgContains(content, q) {
+  if (typeof content === 'string') return content.toLowerCase().includes(q);
+  if (Array.isArray(content)) {
+    return content.some(block => {
+      if (block.text && block.text.toLowerCase().includes(q)) return true;
+      if (block.thinking && block.thinking.toLowerCase().includes(q)) return true;
+      if (block.name && block.name.toLowerCase().includes(q)) return true;
+      if (block.input && JSON.stringify(block.input).toLowerCase().includes(q)) return true;
+      if (block.content && typeof block.content === 'string' && block.content.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }
+  return false;
+}
+
+function highlightText(html, q) {
+  if (!q) return html;
+  const regex = new RegExp(`(${escRegex(q)})`, 'gi');
+  return html.replace(regex, '<mark>$1</mark>');
+}
+
+// --- Utilities ---
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function escRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function fmtNum(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+function formatDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  if (diff < 604800000) {
+    return d.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// --- Events ---
+document.getElementById('projectFilter').addEventListener('input', renderSessionList);
+
+// --- Toast ---
+function showToast(msg) {
+  let toast = document.querySelector('.toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// --- URL Param Auto-Load ---
+async function initWithParams() {
+  await loadSessions();
+  const params = new URLSearchParams(window.location.search);
+  const project = params.get('project');
+  const id = params.get('id');
+  if (project && id) {
+    // Find and highlight the matching session in the sidebar
+    const items = document.querySelectorAll('.session-item');
+    items.forEach(el => {
+      if (el.dataset.project === project && el.dataset.id === id) {
+        el.classList.add('active');
+        activeSessionEl = el;
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+    loadConversation(project, id);
+  }
+}
+
+// --- Init ---
+initWithParams();
+</script>
+</body>
+</html>

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Changes</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.header {
+  padding: 24px 32px 12px;
+}
+.header h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+.header .icon { margin-right: 8px; }
+
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  padding: 0 32px 16px;
+  flex-wrap: wrap;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  min-width: 160px;
+}
+.stat-card .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+.stat-card .value.accent { color: var(--accent); }
+.stat-card .value.green { color: var(--green); }
+.stat-card .value.orange { color: var(--orange); }
+
+.container { padding: 0 32px 32px; }
+
+.group-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.group-card:hover { border-color: var(--accent); }
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  cursor: pointer;
+  user-select: none;
+}
+.group-header:hover { background: var(--surface2); }
+.group-id {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
+}
+.group-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.group-meta span { white-space: nowrap; }
+.chevron {
+  transition: transform 0.2s;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-left: 12px;
+}
+.group-card.expanded .chevron { transform: rotate(90deg); }
+.group-body {
+  display: none;
+  border-top: 1px solid var(--border);
+  padding: 12px 20px;
+}
+.group-card.expanded .group-body { display: block; }
+
+.file-item {
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+.file-item:hover { background: var(--surface2); }
+.file-item.active { background: var(--accent); color: #fff; }
+.file-hash {
+  font-family: 'Consolas', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-versions-badge {
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.file-item.active .file-versions-badge { background: rgba(255,255,255,0.2); color: #fff; }
+
+.version-panel {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+.version-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  flex-wrap: wrap;
+}
+.version-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.version-btn:hover { border-color: var(--accent); }
+.version-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.toggle-btn {
+  margin-left: auto;
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.toggle-btn:hover { border-color: var(--accent); }
+.toggle-btn.diff-mode { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.content-view {
+  padding: 14px;
+  max-height: 500px;
+  overflow: auto;
+}
+.content-view pre {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.diff-line { padding: 1px 8px; border-radius: 3px; }
+.diff-line.add { background: rgba(0, 184, 148, 0.15); color: var(--green); }
+.diff-line.remove { background: rgba(231, 76, 60, 0.15); color: var(--red); }
+.diff-line.same { color: var(--text-dim); }
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+}
+.error-msg {
+  text-align: center;
+  padding: 20px;
+  color: var(--red);
+  font-size: 0.9rem;
+}
+.version-action-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.version-action-btn:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast-msg {
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #fff;
+  animation: toastIn 0.25s ease, toastOut 0.3s ease 2.7s forwards;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.toast-success { background: var(--green); }
+.toast-error { background: var(--red); }
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#128221;</span> File Changes</h1></div>
+<div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('changes')</script>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat-card"><div class="label">Total Groups</div><div class="value accent" id="statGroups">-</div></div>
+  <div class="stat-card"><div class="label">Files Tracked</div><div class="value green" id="statFiles">-</div></div>
+  <div class="stat-card"><div class="label">Total Versions</div><div class="value orange" id="statVersions">-</div></div>
+</div>
+
+<div class="container" id="groupList">
+  <div class="loading">Loading change history...</div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const API_BASE = 'http://localhost:3456/api/file-history';
+let groupsData = [];
+const contentCache = {};
+
+function diffLines(oldText, newText) {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  const result = [];
+  let oi = 0, ni = 0;
+  while (oi < oldLines.length || ni < newLines.length) {
+    if (oi < oldLines.length && ni < newLines.length && oldLines[oi] === newLines[ni]) {
+      result.push({ type: 'same', text: newLines[ni] });
+      oi++; ni++;
+    } else if (ni < newLines.length && (oi >= oldLines.length || !oldLines.includes(newLines[ni]))) {
+      result.push({ type: 'add', text: newLines[ni] });
+      ni++;
+    } else {
+      result.push({ type: 'remove', text: oldLines[oi] });
+      oi++;
+    }
+  }
+  return result;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatDate(d) {
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt)) return d;
+    return dt.toLocaleString();
+  } catch { return d; }
+}
+
+async function fetchContent(groupId, fileRef) {
+  const key = groupId + '|' + fileRef;
+  if (contentCache[key]) return contentCache[key];
+  const res = await fetch(`${API_BASE}/content?group=${encodeURIComponent(groupId)}&file=${encodeURIComponent(fileRef)}`);
+  if (!res.ok) throw new Error('Failed to fetch content');
+  const data = await res.json();
+  contentCache[key] = data.content;
+  return data.content;
+}
+
+function renderStats() {
+  let totalFiles = 0, totalVersions = 0;
+  groupsData.forEach(g => {
+    totalFiles += g.fileCount || 0;
+    totalVersions += g.totalVersions || 0;
+  });
+  document.getElementById('statGroups').textContent = groupsData.length;
+  document.getElementById('statFiles').textContent = totalFiles;
+  document.getElementById('statVersions').textContent = totalVersions;
+}
+
+function renderGroups() {
+  const container = document.getElementById('groupList');
+  if (!groupsData.length) {
+    container.innerHTML = '<div class="loading">No change groups found.</div>';
+    return;
+  }
+  container.innerHTML = groupsData.map((g, idx) => `
+    <div class="group-card" data-idx="${idx}">
+      <div class="group-header" onclick="toggleGroup(${idx})">
+        <div>
+          <div class="group-id" title="${escapeHtml(g.id)}">${escapeHtml(g.id)}</div>
+          <div style="font-size:0.75rem;color:var(--text-dim);margin-top:4px">${formatDate(g.modified)}</div>
+        </div>
+        <div class="group-meta">
+          <span>${g.fileCount || 0} file${(g.fileCount||0)===1?'':'s'}</span>
+          <span>${g.totalVersions || 0} version${(g.totalVersions||0)===1?'':'s'}</span>
+          <span class="chevron">&#9654;</span>
+        </div>
+      </div>
+      <div class="group-body" id="groupBody${idx}"></div>
+    </div>
+  `).join('');
+}
+
+function toggleGroup(idx) {
+  const card = document.querySelector(`.group-card[data-idx="${idx}"]`);
+  const wasExpanded = card.classList.contains('expanded');
+  card.classList.toggle('expanded');
+  if (!wasExpanded) renderGroupFiles(idx);
+}
+
+function renderGroupFiles(idx) {
+  const g = groupsData[idx];
+  const body = document.getElementById('groupBody' + idx);
+  const files = g.files || {};
+  const hashes = Object.keys(files);
+  if (!hashes.length) {
+    body.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem">No files in this group.</div>';
+    return;
+  }
+  body.innerHTML = '<div class="file-list" id="fileList' + idx + '">' +
+    hashes.map(hash => {
+      const versions = files[hash];
+      return `<div class="file-item" data-group="${idx}" data-hash="${escapeHtml(hash)}" onclick="selectFile(${idx},'${escapeHtml(hash)}')">
+        <span class="file-hash" title="${escapeHtml(hash)}">${escapeHtml(hash)}</span>
+        <span class="file-versions-badge">${versions.length} ver</span>
+      </div>`;
+    }).join('') +
+    '</div><div id="versionPanel' + idx + '"></div>';
+}
+
+async function selectFile(groupIdx, hash) {
+  const g = groupsData[groupIdx];
+  const versions = g.files[hash];
+  // Highlight active
+  document.querySelectorAll(`.file-item[data-group="${groupIdx}"]`).forEach(el => el.classList.remove('active'));
+  const el = document.querySelector(`.file-item[data-group="${groupIdx}"][data-hash="${hash}"]`);
+  if (el) el.classList.add('active');
+
+  const panel = document.getElementById('versionPanel' + groupIdx);
+  panel.innerHTML = `<div class="version-panel">
+    <div class="version-toolbar">
+      ${versions.map((v, vi) => `<button class="version-btn ${vi===versions.length-1?'active':''}" onclick="showVersion(${groupIdx},'${hash}',${vi})">${'v'+v.version}</button>`).join('')}
+      <button class="version-action-btn" onclick="copyVersionContent(${groupIdx},'${hash}')">Copy Content</button>
+      <button class="version-action-btn" onclick="saveVersionAs(${groupIdx},'${hash}')">Save As...</button>
+      <button class="toggle-btn" id="toggleDiff${groupIdx}" onclick="toggleDiffMode(${groupIdx},'${hash}')">Diff View</button>
+    </div>
+    <div class="content-view" id="contentView${groupIdx}"><div class="loading">Loading...</div></div>
+  </div>`;
+
+  // Store state
+  panel.dataset.hash = hash;
+  panel.dataset.diffMode = 'false';
+  panel.dataset.currentVersion = versions.length - 1;
+
+  showVersion(groupIdx, hash, versions.length - 1);
+}
+
+async function showVersion(groupIdx, hash, versionIdx) {
+  const g = groupsData[groupIdx];
+  const versions = g.files[hash];
+  const v = versions[versionIdx];
+  const panel = document.getElementById('versionPanel' + groupIdx);
+  const cv = document.getElementById('contentView' + groupIdx);
+  panel.dataset.currentVersion = versionIdx;
+
+  // Update active button
+  panel.querySelectorAll('.version-btn').forEach((btn, i) => btn.classList.toggle('active', i === versionIdx));
+
+  const isDiff = panel.dataset.diffMode === 'true';
+
+  try {
+    if (isDiff && versionIdx > 0) {
+      const [oldContent, newContent] = await Promise.all([
+        fetchContent(g.id, versions[versionIdx - 1].file),
+        fetchContent(g.id, v.file)
+      ]);
+      const diff = diffLines(oldContent, newContent);
+      cv.innerHTML = '<pre>' + diff.map(d => {
+        const prefix = d.type === 'add' ? '+' : d.type === 'remove' ? '-' : ' ';
+        return `<div class="diff-line ${d.type}">${prefix} ${escapeHtml(d.text)}</div>`;
+      }).join('') + '</pre>';
+    } else if (isDiff && versionIdx === 0) {
+      const content = await fetchContent(g.id, v.file);
+      cv.innerHTML = '<pre>' + content.split('\n').map(line =>
+        `<div class="diff-line add">+ ${escapeHtml(line)}</div>`
+      ).join('') + '</pre>';
+    } else {
+      const content = await fetchContent(g.id, v.file);
+      cv.innerHTML = '<pre>' + escapeHtml(content) + '</pre>';
+    }
+  } catch (err) {
+    cv.innerHTML = `<div class="error-msg">Error loading content: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function toggleDiffMode(groupIdx, hash) {
+  const panel = document.getElementById('versionPanel' + groupIdx);
+  const btn = document.getElementById('toggleDiff' + groupIdx);
+  const isDiff = panel.dataset.diffMode === 'true';
+  panel.dataset.diffMode = isDiff ? 'false' : 'true';
+  btn.classList.toggle('diff-mode', !isDiff);
+  btn.textContent = isDiff ? 'Diff View' : 'Raw Content';
+  showVersion(groupIdx, hash, parseInt(panel.dataset.currentVersion));
+}
+
+async function init() {
+  try {
+    const res = await fetch(API_BASE);
+    if (!res.ok) throw new Error('API returned ' + res.status);
+    const data = await res.json();
+    groupsData = data.groups || [];
+    renderStats();
+    renderGroups();
+  } catch (err) {
+    document.getElementById('groupList').innerHTML = `<div class="error-msg">Failed to load file history: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast-msg toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+async function copyVersionContent(groupIdx, hash) {
+  const panel = document.getElementById('versionPanel' + groupIdx);
+  const versionIdx = parseInt(panel.dataset.currentVersion);
+  const g = groupsData[groupIdx];
+  const versions = g.files[hash];
+  const v = versions[versionIdx];
+  try {
+    const content = await fetchContent(g.id, v.file);
+    await navigator.clipboard.writeText(content);
+    toast('Content copied to clipboard');
+  } catch (err) {
+    toast('Failed to copy: ' + err.message, 'error');
+  }
+}
+
+async function saveVersionAs(groupIdx, hash) {
+  const panel = document.getElementById('versionPanel' + groupIdx);
+  const versionIdx = parseInt(panel.dataset.currentVersion);
+  const g = groupsData[groupIdx];
+  const versions = g.files[hash];
+  const v = versions[versionIdx];
+
+  const targetPath = prompt('Enter file path to save as:');
+  if (!targetPath) return;
+
+  try {
+    const content = await fetchContent(g.id, v.file);
+    const res = await fetch(API_BASE + '/save-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, targetPath })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    toast('File saved to ' + targetPath);
+  } catch (err) {
+    toast('Failed to save: ' + err.message, 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agents Manager</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; min-height:100vh; }
+.header { padding:24px 32px 8px; }
+.header h1 { font-size:1.6rem; font-weight:700; display:flex; align-items:center; gap:10px; }
+.header .icon { font-size:1.8rem; }
+
+/* Nav placeholder */
+.nav-bar { background:var(--surface); border-bottom:1px solid var(--border); }
+
+.container { max-width:1100px; margin:0 auto; padding:16px 32px 48px; }
+
+/* Toolbar */
+.toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+.toolbar .left { display:flex; gap:10px; align-items:center; }
+.search-input {
+  background:var(--surface); border:1px solid var(--border); color:var(--text);
+  padding:8px 14px; border-radius:var(--radius); font-size:0.9rem; width:260px; outline:none;
+}
+.search-input:focus { border-color:var(--accent); }
+.btn {
+  padding:8px 18px; border:none; border-radius:var(--radius); cursor:pointer;
+  font-size:0.85rem; font-weight:600; transition:all 0.15s;
+}
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { filter:brightness(1.15); }
+.btn-danger { background:var(--red); color:#fff; }
+.btn-danger:hover { filter:brightness(1.15); }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text-dim); }
+.btn-outline:hover { border-color:var(--accent); color:var(--text); }
+.btn-sm { padding:5px 12px; font-size:0.8rem; }
+.btn-icon { background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:1rem; padding:4px 8px; border-radius:6px; }
+.btn-icon:hover { background:var(--surface2); color:var(--text); }
+
+.stats { display:flex; gap:16px; margin-bottom:20px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:14px 20px; flex:1; text-align:center;
+}
+.stat-card .value { font-size:1.5rem; font-weight:700; color:var(--accent); }
+.stat-card .label { font-size:0.75rem; color:var(--text-dim); margin-top:2px; }
+
+/* Agent cards */
+.agents-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px; }
+.agent-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:20px; transition:border-color 0.15s; position:relative;
+}
+.agent-card:hover { border-color:var(--accent); }
+.agent-card .card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+.agent-card .agent-name { font-size:1.1rem; font-weight:700; color:var(--text); }
+.agent-card .agent-desc { color:var(--text-dim); font-size:0.85rem; margin-bottom:12px; line-height:1.5; }
+.agent-card .prompt-preview {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  padding:10px 12px; font-size:0.8rem; color:var(--text-dim); line-height:1.5;
+  max-height:80px; overflow:hidden; position:relative; font-family:'Cascadia Code','Fira Code',monospace;
+}
+.agent-card .prompt-preview::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:30px;
+  background:linear-gradient(transparent, var(--surface2));
+}
+.card-actions { display:flex; gap:4px; }
+.agent-card .card-footer { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+.badge { padding:3px 10px; border-radius:20px; font-size:0.7rem; font-weight:600; }
+.badge-green { background:rgba(0,184,148,0.15); color:var(--green); }
+
+/* Modal */
+.modal-overlay {
+  display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.active { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  width:600px; max-width:92vw; max-height:90vh; overflow-y:auto; padding:28px;
+}
+.modal h2 { font-size:1.2rem; margin-bottom:20px; }
+.form-group { margin-bottom:16px; }
+.form-group label { display:block; font-size:0.8rem; color:var(--text-dim); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.form-group input, .form-group textarea {
+  width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+  padding:10px 14px; border-radius:8px; font-size:0.9rem; outline:none; font-family:inherit;
+}
+.form-group input:focus, .form-group textarea:focus { border-color:var(--accent); }
+.form-group textarea { resize:vertical; min-height:120px; font-family:'Cascadia Code','Fira Code',monospace; font-size:0.85rem; line-height:1.6; }
+.form-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+
+/* CLI command box */
+.cli-overlay {
+  display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+  background:rgba(0,0,0,0.6); z-index:1000; justify-content:center; align-items:center;
+  backdrop-filter:blur(4px);
+}
+.cli-overlay.active { display:flex; }
+.cli-box {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  width:700px; max-width:92vw; padding:28px;
+}
+.cli-box h2 { font-size:1.1rem; margin-bottom:6px; }
+.cli-box .subtitle { color:var(--text-dim); font-size:0.8rem; margin-bottom:16px; }
+.cli-command {
+  background:var(--bg); border:1px solid var(--border); border-radius:8px;
+  padding:16px; font-family:'Cascadia Code','Fira Code',monospace; font-size:0.82rem;
+  color:var(--green); line-height:1.6; word-break:break-all; white-space:pre-wrap;
+  max-height:300px; overflow-y:auto; position:relative;
+}
+.copy-hint { color:var(--text-dim); font-size:0.75rem; margin-top:10px; text-align:right; }
+
+/* Empty state */
+.empty-state {
+  text-align:center; padding:60px 20px; color:var(--text-dim);
+}
+.empty-state .empty-icon { font-size:3rem; margin-bottom:12px; }
+.empty-state p { margin-bottom:16px; }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:24px; right:24px; background:var(--surface2); border:1px solid var(--border);
+  color:var(--text); padding:12px 20px; border-radius:var(--radius); font-size:0.85rem;
+  z-index:2000; transform:translateY(80px); opacity:0; transition:all 0.3s;
+}
+.toast.show { transform:translateY(0); opacity:1; }
+.toast.success { border-left:3px solid var(--green); }
+
+/* Import/Export */
+.import-export { display:flex; gap:8px; }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#129302;</span> Agents Manager</h1></div>
+<div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('agents')</script>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat-card"><div class="value" id="totalAgents">0</div><div class="label">Total Agents</div></div>
+    <div class="stat-card"><div class="value" id="totalPromptChars">0</div><div class="label">Total Prompt Chars</div></div>
+    <div class="stat-card"><div class="value" id="avgPromptLen">0</div><div class="label">Avg Prompt Length</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="left">
+      <input type="text" class="search-input" id="searchInput" placeholder="Search agents...">
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <div class="import-export">
+        <button class="btn btn-outline btn-sm" onclick="exportAgents()" title="Export all agents as JSON">Export</button>
+        <button class="btn btn-outline btn-sm" onclick="importAgents()" title="Import agents from JSON">Import</button>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="showAllCli()">Copy All CLI</button>
+      <button class="btn btn-primary" onclick="openModal()">+ New Agent</button>
+    </div>
+  </div>
+
+  <div id="agentsContainer"></div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">New Agent</h2>
+    <div class="form-group">
+      <label>Agent Name (slug)</label>
+      <input type="text" id="agentName" placeholder="e.g. code-reviewer" spellcheck="false">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="agentDesc" placeholder="What does this agent do?">
+    </div>
+    <div class="form-group">
+      <label>System Prompt</label>
+      <textarea class="cm-editor" id="agentPrompt" placeholder="Enter the system prompt for this agent..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAgent()">Save Agent</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLI Command Modal -->
+<div class="cli-overlay" id="cliOverlay">
+  <div class="cli-box">
+    <h2 id="cliTitle">CLI Command</h2>
+    <div class="subtitle">Use this command to start Claude Code with the agent(s):</div>
+    <div class="cli-command" id="cliCommand"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;">
+      <span class="copy-hint">Click the command to copy</span>
+      <button class="btn btn-outline btn-sm" onclick="closeCli()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Hidden file input for import -->
+<input type="file" id="importFile" accept=".json" style="display:none">
+
+<script>
+const STORAGE_KEY = 'claude-agents';
+let agents = {};
+let editingKey = null;
+
+function load() {
+  try {
+    agents = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  } catch { agents = {}; }
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(agents));
+  render();
+}
+
+function render() {
+  const container = document.getElementById('agentsContainer');
+  const query = document.getElementById('searchInput').value.toLowerCase();
+  const keys = Object.keys(agents).filter(k => {
+    if (!query) return true;
+    const a = agents[k];
+    return k.toLowerCase().includes(query) ||
+           (a.description||'').toLowerCase().includes(query) ||
+           (a.prompt||'').toLowerCase().includes(query);
+  });
+
+  // Stats
+  const allKeys = Object.keys(agents);
+  document.getElementById('totalAgents').textContent = allKeys.length;
+  const totalChars = allKeys.reduce((s,k) => s + (agents[k].prompt||'').length, 0);
+  document.getElementById('totalPromptChars').textContent = totalChars.toLocaleString();
+  document.getElementById('avgPromptLen').textContent = allKeys.length ? Math.round(totalChars/allKeys.length).toLocaleString() : '0';
+
+  if (keys.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">&#129302;</div>
+        <p>${allKeys.length === 0 ? 'No agents defined yet.' : 'No agents match your search.'}</p>
+        ${allKeys.length === 0 ? '<button class="btn btn-primary" onclick="openModal()">Create Your First Agent</button>' : ''}
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = '<div class="agents-grid">' + keys.map(k => {
+    const a = agents[k];
+    const promptPreview = (a.prompt||'').substring(0, 200);
+    return `
+      <div class="agent-card">
+        <div class="card-header">
+          <div class="agent-name">${esc(k)}</div>
+          <div class="card-actions">
+            <button class="btn-icon" onclick="showCli('${esc(k)}')" title="CLI command">&#128203;</button>
+            <button class="btn-icon" onclick="editAgent('${esc(k)}')" title="Edit">&#9998;</button>
+            <button class="btn-icon" onclick="deleteAgent('${esc(k)}')" title="Delete" style="color:var(--red);">&#10005;</button>
+          </div>
+        </div>
+        <div class="agent-desc">${esc(a.description || 'No description')}</div>
+        <div class="prompt-preview">${esc(promptPreview)}</div>
+        <div class="card-footer">
+          <span class="badge badge-green">Agent</span>
+          <span style="font-size:0.75rem;color:var(--text-dim);">${(a.prompt||'').length} chars</span>
+        </div>
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function openModal(key) {
+  editingKey = key || null;
+  document.getElementById('modalTitle').textContent = key ? 'Edit Agent' : 'New Agent';
+  document.getElementById('agentName').value = key || '';
+  document.getElementById('agentName').disabled = !!key;
+  document.getElementById('agentDesc').value = key ? (agents[key].description||'') : '';
+  document.getElementById('agentPrompt').value = key ? (agents[key].prompt||'') : '';
+  document.getElementById('modalOverlay').classList.add('active');
+  if (!key) document.getElementById('agentName').focus();
+  else document.getElementById('agentDesc').focus();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  editingKey = null;
+}
+
+function saveAgent() {
+  const name = document.getElementById('agentName').value.trim();
+  const desc = document.getElementById('agentDesc').value.trim();
+  const prompt = document.getElementById('agentPrompt').value.trim();
+  if (!name) { toast('Agent name is required'); return; }
+  if (!prompt) { toast('System prompt is required'); return; }
+  if (/[^a-zA-Z0-9_-]/.test(name)) { toast('Name should only contain letters, numbers, hyphens, underscores'); return; }
+
+  agents[name] = { description: desc, prompt: prompt };
+  save();
+  closeModal();
+  toast('Agent saved!', true);
+}
+
+function editAgent(key) {
+  openModal(key);
+}
+
+function deleteAgent(key) {
+  if (!confirm(`Delete agent "${key}"?`)) return;
+  delete agents[key];
+  save();
+  toast('Agent deleted', true);
+}
+
+function buildAgentsJson(keys) {
+  const obj = {};
+  (keys || Object.keys(agents)).forEach(k => {
+    obj[k] = { description: agents[k].description || '', prompt: agents[k].prompt || '' };
+  });
+  return JSON.stringify(obj);
+}
+
+function showCli(key) {
+  const json = buildAgentsJson([key]);
+  document.getElementById('cliTitle').textContent = `CLI for "${key}"`;
+  const cmd = `claude --agents '${json.replace(/'/g, "'\\''")}'`;
+  document.getElementById('cliCommand').textContent = cmd;
+  document.getElementById('cliOverlay').classList.add('active');
+  document.getElementById('cliCommand').onclick = () => {
+    if (window.electronAPI?.isElectron) { runInTerminal(cmd); return; }
+    navigator.clipboard.writeText(cmd);
+    toast('Copied to clipboard!', true);
+  };
+}
+
+function showAllCli() {
+  if (Object.keys(agents).length === 0) { toast('No agents to export'); return; }
+  const json = buildAgentsJson();
+  document.getElementById('cliTitle').textContent = 'CLI for All Agents';
+  const cmd = `claude --agents '${json.replace(/'/g, "'\\''")}'`;
+  document.getElementById('cliCommand').textContent = cmd;
+  document.getElementById('cliOverlay').classList.add('active');
+  document.getElementById('cliCommand').onclick = () => {
+    if (window.electronAPI?.isElectron) { runInTerminal(cmd); return; }
+    navigator.clipboard.writeText(cmd);
+    toast('Copied to clipboard!', true);
+  };
+}
+
+function closeCli() {
+  document.getElementById('cliOverlay').classList.remove('active');
+}
+
+function exportAgents() {
+  if (Object.keys(agents).length === 0) { toast('No agents to export'); return; }
+  const blob = new Blob([JSON.stringify(agents, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'claude-agents.json'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported!', true);
+}
+
+function importAgents() {
+  document.getElementById('importFile').click();
+}
+
+document.getElementById('importFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      let count = 0;
+      for (const [k, v] of Object.entries(data)) {
+        if (v && typeof v === 'object' && typeof v.prompt === 'string') {
+          agents[k] = { description: v.description || '', prompt: v.prompt };
+          count++;
+        }
+      }
+      save();
+      toast(`Imported ${count} agent(s)!`, true);
+    } catch { toast('Invalid JSON file'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function toast(msg, success) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (success ? ' success' : '');
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Close modals on overlay click
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.getElementById('cliOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeCli(); });
+
+// Search
+document.getElementById('searchInput').addEventListener('input', render);
+
+// Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeCli(); }
+});
+
+// Init
+load();
+render();
+</script>
+</body>
+</html>

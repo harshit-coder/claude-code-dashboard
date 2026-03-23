@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plugins Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 28px 32px 12px;
+  }
+
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header h1 .icon {
+    font-size: 1.6rem;
+  }
+
+  .content {
+    padding: 16px 32px 40px;
+  }
+
+  .section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 14px;
+  }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .card-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  .badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+
+  .badge-enabled {
+    background: rgba(0, 184, 148, 0.15);
+    color: var(--green);
+  }
+
+  .badge-disabled {
+    background: rgba(231, 76, 60, 0.15);
+    color: var(--red);
+  }
+
+  .card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  .meta-label {
+    font-weight: 500;
+    min-width: 65px;
+  }
+
+  .meta-value {
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .location-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .location-marketplace {
+    background: rgba(108, 92, 231, 0.15);
+    color: var(--accent);
+  }
+
+  .location-cache {
+    background: rgba(243, 156, 18, 0.15);
+    color: var(--orange);
+  }
+
+  .marketplace-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+  }
+
+  .marketplace-card .mp-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .marketplace-card .mp-url {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-banner {
+    background: rgba(231, 76, 60, 0.12);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    color: var(--red);
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    min-width: 140px;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="header"><h1><span class="icon">&#128230;</span> Plugins</h1></div>
+  <div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('plugins')</script>
+
+  <div class="content">
+    <div id="app">
+      <div class="loading"><div class="spinner"></div><div>Loading plugins...</div></div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const app = document.getElementById('app');
+
+  function formatSize(bytes) {
+    if (bytes == null || isNaN(bytes)) return '—';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function locationClass(loc) {
+    if (!loc) return 'location-cache';
+    const l = loc.toLowerCase();
+    if (l.includes('marketplace')) return 'location-marketplace';
+    return 'location-cache';
+  }
+
+  function render(data) {
+    const { installed, enabledPlugins, extraKnownMarketplaces } = data;
+    let html = '';
+
+    // Stats
+    const total = installed.length;
+    const enabled = installed.filter(p => enabledPlugins && enabledPlugins[p.name]).length;
+    const totalSize = installed.reduce((s, p) => s + (p.size || 0), 0);
+
+    html += '<div class="stats-bar">';
+    html += `<div class="stat"><div class="stat-value">${total}</div><div class="stat-label">Total Plugins</div></div>`;
+    html += `<div class="stat"><div class="stat-value" style="color:var(--green)">${enabled}</div><div class="stat-label">Enabled</div></div>`;
+    html += `<div class="stat"><div class="stat-value" style="color:var(--red)">${total - enabled}</div><div class="stat-label">Disabled</div></div>`;
+    html += `<div class="stat"><div class="stat-value">${formatSize(totalSize)}</div><div class="stat-label">Total Size</div></div>`;
+    html += '</div>';
+
+    // Plugin cards
+    html += '<div class="section-title">Installed Plugins</div>';
+    if (installed.length === 0) {
+      html += '<div class="empty-state">No plugins installed.</div>';
+    } else {
+      html += '<div class="cards-grid">';
+      for (const p of installed) {
+        const isEnabled = enabledPlugins && enabledPlugins[p.name];
+        const badgeClass = isEnabled ? 'badge-enabled' : 'badge-disabled';
+        const badgeText = isEnabled ? 'Enabled' : 'Disabled';
+        const locClass = locationClass(p.location);
+        const locLabel = p.location || 'unknown';
+
+        html += `<div class="card">
+          <div class="card-top">
+            <div class="card-name">${escapeHtml(p.name)}</div>
+            <span class="badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="card-meta">
+            <div class="meta-row">
+              <span class="meta-label">Location</span>
+              <span class="location-badge ${locClass}">${escapeHtml(locLabel)}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Size</span>
+              <span class="meta-value">${formatSize(p.size)}</span>
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Path</span>
+              <span class="meta-value" style="font-size:0.78rem">${escapeHtml(p.path || '—')}</span>
+            </div>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    // Marketplace sources
+    const mpKeys = extraKnownMarketplaces ? Object.keys(extraKnownMarketplaces) : [];
+    if (mpKeys.length > 0) {
+      html += '<div class="section-title">Marketplace Sources</div>';
+      html += '<div class="cards-grid">';
+      for (const key of mpKeys) {
+        const val = extraKnownMarketplaces[key];
+        const url = typeof val === 'string' ? val : (val && val.url ? val.url : JSON.stringify(val));
+        html += `<div class="marketplace-card">
+          <div class="mp-name">${escapeHtml(key)}</div>
+          <div class="mp-url">${escapeHtml(url)}</div>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    app.innerHTML = html;
+  }
+
+  fetch('http://localhost:3456/api/plugins')
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(data => render(data))
+    .catch(err => {
+      app.innerHTML = `<div class="error-banner">Failed to load plugins: ${escapeHtml(err.message)}</div>
+        <div class="empty-state">Make sure the API server is running on localhost:3456.</div>`;
+    });
+})();
+</script>
+</body>
+</html>

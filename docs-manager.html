@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLAUDE.md Editor</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 24px 32px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header h1 .icon {
+    font-size: 1.6rem;
+  }
+
+  .nav-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 24px 16px;
+  }
+
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .status-bar .count {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .btn-refresh {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+  }
+
+  .btn-refresh:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+  }
+
+  .card.unsaved {
+    border-color: var(--orange);
+  }
+
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  .card-header:hover {
+    background: var(--surface2);
+  }
+
+  .card-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title .chevron {
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    font-size: 0.75rem;
+  }
+
+  .card-title .chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .card-dir {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-family: 'Consolas', 'Courier New', monospace;
+    word-break: break-all;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .card-body {
+    display: none;
+    padding: 0 18px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-body.open {
+    display: block;
+  }
+
+  .editor {
+    width: 100%;
+    min-height: 300px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    resize: vertical;
+    margin-top: 12px;
+    outline: none;
+    tab-size: 2;
+  }
+
+  .editor:focus {
+    border-color: var(--accent);
+  }
+
+  .card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .btn-save {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: opacity 0.2s;
+  }
+
+  .btn-save:hover {
+    opacity: 0.85;
+  }
+
+  .btn-save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-discard {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .btn-discard:hover {
+    color: var(--red);
+    border-color: var(--red);
+  }
+
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .toast {
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 0.88rem;
+    color: #fff;
+    animation: slideIn 0.25s ease-out;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+  .toast.warning { background: var(--orange); }
+
+  @keyframes slideIn {
+    from { transform: translateX(80px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  .error-msg {
+    text-align: center;
+    padding: 40px 0;
+    color: var(--red);
+  }
+
+  .unsaved-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--orange);
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128196;</span> CLAUDE.md Editor</h1>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('docs')</script>
+
+<div class="container">
+  <div class="status-bar">
+    <span class="count" id="docCount">Loading...</span>
+    <div>
+      <button class="btn-refresh" onclick="showCreateModal()">&#10010; New CLAUDE.md</button>
+      <button class="btn-refresh" onclick="fetchDocs()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Create New CLAUDE.md Modal -->
+  <div id="createModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:200; display:none; align-items:center; justify-content:center;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; width:500px; max-width:90vw;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="font-size:1.1rem;">Create New CLAUDE.md</h3>
+        <span onclick="hideCreateModal()" style="cursor:pointer; font-size:18px; color:var(--text-dim); padding:4px 8px; border-radius:4px;">&times;</span>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; font-weight:600; color:var(--text-dim); display:block; margin-bottom:4px;">Directory Path</label>
+        <input id="newDocPath" type="text" placeholder="e.g., C:\Users\you\project" style="width:100%; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; outline:none;">
+        <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">CLAUDE.md will be created in this directory</div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; font-weight:600; color:var(--text-dim); display:block; margin-bottom:4px;">Initial Content (optional)</label>
+        <textarea id="newDocContent" rows="6" placeholder="# Project Instructions&#10;&#10;Add your instructions for Claude here..." style="width:100%; padding:10px; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; font-family:'Cascadia Code','Fira Code','Consolas',monospace; resize:vertical; outline:none;"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="hideCreateModal()" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text-dim); cursor:pointer; font-size:13px;">Cancel</button>
+        <button onclick="createNewDoc()" style="padding:8px 16px; border-radius:8px; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:13px; font-weight:600;">Create</button>
+      </div>
+    </div>
+  </div>
+  <div id="cardList">
+    <div class="loading">Loading CLAUDE.md files...</div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+(function() {
+  let docs = [];
+  const originalContents = {};
+  const unsavedSet = new Set();
+  const cmEditors = {}; // index → CodeMirror editor instance
+
+  // Toast notifications
+  function toast(msg, type) {
+    const el = document.createElement('div');
+    el.className = 'toast ' + (type || 'success');
+    el.textContent = msg;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => { el.remove(); }, 3000);
+  }
+
+  // Format bytes
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  // Format date
+  function fmtDate(d) {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Fetch docs
+  window.fetchDocs = async function() {
+    const list = document.getElementById('cardList');
+    list.innerHTML = '<div class="loading">Loading CLAUDE.md files...</div>';
+    try {
+      const res = await fetch('http://localhost:3456/api/docs');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      docs = data.docs || [];
+      document.getElementById('docCount').textContent = docs.length + ' file' + (docs.length !== 1 ? 's' : '') + ' found';
+      renderCards();
+    } catch (e) {
+      list.innerHTML = '<div class="error-msg">Failed to load docs: ' + e.message + '</div>';
+      document.getElementById('docCount').textContent = 'Error';
+      toast('Failed to fetch docs: ' + e.message, 'error');
+    }
+  };
+
+  // Render cards
+  function renderCards() {
+    const list = document.getElementById('cardList');
+    if (docs.length === 0) {
+      list.innerHTML = '<div class="loading">No CLAUDE.md files found.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    docs.forEach((doc, i) => {
+      originalContents[doc.path] = doc.content || '';
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = 'card-' + i;
+      card.innerHTML =
+        '<div class="card-header" onclick="toggleCard(' + i + ')">' +
+          '<div class="card-title">' +
+            '<span class="chevron" id="chev-' + i + '">&#9654;</span>' +
+            '<span>' + escHtml(doc.name || 'CLAUDE.md') + '</span>' +
+            '<span class="unsaved-dot" id="dot-' + i + '" style="display:none"></span>' +
+          '</div>' +
+          '<div>' +
+            '<div class="card-dir">' + escHtml(doc.dir || doc.path) + '</div>' +
+            '<div class="card-meta">' +
+              '<span>' + fmtSize(doc.size || 0) + '</span>' +
+              '<span>' + fmtDate(doc.modified) + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="card-body" id="body-' + i + '">' +
+          '<div class="editor-container" id="editor-' + i + '" data-content="' + encodeURIComponent(doc.content || '') + '"></div>' +
+          '<div class="card-actions">' +
+            '<button class="btn-discard" onclick="discardChanges(' + i + ')">Discard</button>' +
+            '<button class="btn-save" id="savebtn-' + i + '" onclick="saveDoc(' + i + ')">Save</button>' +
+          '</div>' +
+        '</div>';
+      list.appendChild(card);
+    });
+  }
+
+  function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Toggle card
+  window.toggleCard = function(i) {
+    const body = document.getElementById('body-' + i);
+    const chev = document.getElementById('chev-' + i);
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open');
+    chev.classList.toggle('open');
+
+    // Initialize CodeMirror on first open
+    if (!isOpen && !cmEditors[i] && window.CodeMirrorEditor) {
+      const container = document.getElementById('editor-' + i);
+      const content = decodeURIComponent(container.dataset.content || '');
+      container.innerHTML = '';
+      cmEditors[i] = window.CodeMirrorEditor.createEditor(container, {
+        value: content,
+        language: 'markdown',
+        height: '400px',
+        onChange: function() { markDirty(i); },
+      });
+    }
+  };
+
+  // Mark dirty
+  window.markDirty = function(i) {
+    const card = document.getElementById('card-' + i);
+    const dot = document.getElementById('dot-' + i);
+    const path = docs[i].path;
+    const currentValue = cmEditors[i] ? cmEditors[i].getValue() : '';
+    if (currentValue !== originalContents[path]) {
+      unsavedSet.add(path);
+      card.classList.add('unsaved');
+      dot.style.display = 'inline-block';
+    } else {
+      unsavedSet.delete(path);
+      card.classList.remove('unsaved');
+      dot.style.display = 'none';
+    }
+  };
+
+  // Save
+  window.saveDoc = async function(i) {
+    const btn = document.getElementById('savebtn-' + i);
+    const content = cmEditors[i] ? cmEditors[i].getValue() : '';
+    const filePath = docs[i].path;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+      const res = await fetch('http://localhost:3456/api/docs/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath, content })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'HTTP ' + res.status);
+      }
+      originalContents[filePath] = content;
+      unsavedSet.delete(filePath);
+      document.getElementById('card-' + i).classList.remove('unsaved');
+      document.getElementById('dot-' + i).style.display = 'none';
+      toast('Saved ' + (docs[i].name || 'CLAUDE.md'), 'success');
+    } catch (e) {
+      toast('Save failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  };
+
+  // Discard
+  window.discardChanges = function(i) {
+    const path = docs[i].path;
+    if (cmEditors[i]) cmEditors[i].setValue(originalContents[path]);
+    unsavedSet.delete(path);
+    document.getElementById('card-' + i).classList.remove('unsaved');
+    document.getElementById('dot-' + i).style.display = 'none';
+    toast('Changes discarded', 'warning');
+  };
+
+  // Unsaved changes warning
+  window.addEventListener('beforeunload', function(e) {
+    if (unsavedSet.size > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  // Init
+  fetchDocs();
+})();
+
+// ── Create New CLAUDE.md ──
+function showCreateModal() {
+  const modal = document.getElementById('createModal');
+  modal.style.display = 'flex';
+  document.getElementById('newDocPath').focus();
+}
+
+function hideCreateModal() {
+  document.getElementById('createModal').style.display = 'none';
+  document.getElementById('newDocPath').value = '';
+  document.getElementById('newDocContent').value = '';
+}
+
+async function createNewDoc() {
+  const dirPath = document.getElementById('newDocPath').value.trim();
+  if (!dirPath) { alert('Please enter a directory path.'); return; }
+
+  const content = document.getElementById('newDocContent').value || '# Project Instructions\n\nAdd your instructions for Claude here.\n';
+
+  // Build full file path
+  let filePath = dirPath;
+  if (!filePath.endsWith('CLAUDE.md') && !filePath.endsWith('claude.md')) {
+    // Append CLAUDE.md to the directory
+    const sep = filePath.includes('/') ? '/' : '\\';
+    if (!filePath.endsWith(sep)) filePath += sep;
+    filePath += 'CLAUDE.md';
+  }
+
+  try {
+    const res = await fetch('/api/docs/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath, content })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'HTTP ' + res.status);
+    }
+    hideCreateModal();
+    fetchDocs(); // Refresh list
+  } catch (e) {
+    alert('Failed to create: ' + e.message);
+  }
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideCreateModal();
+});
+</script>
+
+</body>
+</html>

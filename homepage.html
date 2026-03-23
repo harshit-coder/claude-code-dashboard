@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 0;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header h1 .icon { font-size: 1.6rem; }
+
+.nav-bar {
+  padding: 0 32px;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 32px 60px;
+}
+
+/* ── Hero Section ── */
+.hero {
+  text-align: center;
+  padding: 56px 24px 48px;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.15) 0%, rgba(0, 184, 148, 0.08) 100%);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 40%, rgba(108, 92, 231, 0.06) 0%, transparent 50%),
+              radial-gradient(circle at 70% 60%, rgba(0, 184, 148, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.hero-title {
+  font-size: 2.8rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+}
+
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--text-dim);
+  margin-bottom: 32px;
+  position: relative;
+}
+
+.hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+  position: relative;
+}
+
+.hero-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 28px;
+  min-width: 160px;
+}
+
+.hero-stat .stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.hero-stat .stat-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.hero-stat .stat-value.green { color: var(--green); }
+.hero-stat .stat-value.accent { color: var(--accent); }
+.hero-stat .stat-value.orange { color: var(--orange); }
+
+/* ── Section Headings ── */
+.section-heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.section-sub {
+  color: var(--text-dim);
+  margin-bottom: 24px;
+  font-size: 1rem;
+}
+
+.section {
+  margin-bottom: 48px;
+}
+
+/* ── Getting Started Steps ── */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.step-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  display: block;
+}
+
+.step-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(108, 92, 231, 0.15);
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #8b7cf7);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 14px;
+}
+
+.step-card h3 {
+  font-size: 1.15rem;
+  margin-bottom: 8px;
+}
+
+.step-card p {
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+/* ── Quick Actions Grid ── */
+.actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.action-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 20px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.action-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.action-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  border-radius: 8px;
+}
+
+.action-card h4 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.action-card p {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.resume-cmd {
+  margin-top: 8px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.resume-cmd.visible { display: flex; }
+
+.resume-cmd code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: var(--green);
+  flex: 1;
+  white-space: normal;
+  word-break: break-all;
+  text-overflow: ellipsis;
+}
+
+.copy-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.copy-btn:hover { opacity: 0.85; }
+
+.run-btn {
+  background: var(--green);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.run-btn:hover { opacity: 0.85; }
+
+/* ── Feature Categories ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  display: block;
+}
+
+.feature-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(108, 92, 231, 0.12);
+}
+
+.feature-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.feature-card-icon {
+  font-size: 1.5rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(108, 92, 231, 0.05));
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.feature-card h3 {
+  font-size: 1.1rem;
+}
+
+.feature-card p {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.feature-links {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.feature-link {
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: rgba(108, 92, 231, 0.1);
+  padding: 3px 10px;
+  border-radius: 20px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.feature-link:hover {
+  background: rgba(108, 92, 231, 0.2);
+}
+
+/* ── Resume Guide ── */
+.resume-guide {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+}
+
+.resume-guide ol {
+  list-style: none;
+  counter-reset: steps;
+  padding: 0;
+}
+
+.resume-guide ol li {
+  counter-increment: steps;
+  padding: 12px 0 12px 48px;
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.resume-guide ol li:last-child { border-bottom: none; }
+
+.resume-guide ol li::before {
+  content: counter(steps);
+  position: absolute;
+  left: 0;
+  top: 12px;
+  width: 32px;
+  height: 32px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.resume-guide ol li a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.resume-guide ol li a:hover { text-decoration: underline; }
+
+.resume-tip {
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: rgba(0, 184, 148, 0.08);
+  border: 1px solid rgba(0, 184, 148, 0.2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.resume-tip strong { color: var(--green); }
+
+.resume-tip code {
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  color: var(--green);
+}
+
+/* ── Learn More ── */
+.learn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.learn-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-decoration: none;
+  color: var(--text);
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+  display: block;
+}
+
+.learn-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.learn-card .learn-icon {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+}
+
+.learn-card h4 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.learn-card p {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+/* ── Footer ── */
+.footer {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border);
+  margin-top: 20px;
+}
+
+/* ── Loading state ── */
+.loading {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.loading-pulse { animation: pulse 1.5s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#127968;</span> Claude Code Dashboard</h1></div>
+<div class="nav-bar" id="mainNav"></div>
+
+<div class="container">
+
+  <!-- ── Hero ── -->
+  <div class="hero">
+    <h2 class="hero-title">Claude Code Dashboard</h2>
+    <p class="hero-subtitle">The complete management UI for Claude Code &mdash; zero dependencies</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="stat-label">Status</div>
+        <div class="stat-value green loading-pulse" id="heroStatus">Loading...</div>
+      </div>
+      <div class="hero-stat">
+        <div class="stat-label">MCP Servers</div>
+        <div class="stat-value accent loading-pulse" id="heroServers">--</div>
+      </div>
+      <div class="hero-stat">
+        <div class="stat-label">Subscription</div>
+        <div class="stat-value orange loading-pulse" id="heroSub">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Getting Started ── -->
+  <div class="section">
+    <h2 class="section-heading">New to Claude Code?</h2>
+    <p class="section-sub">Get up and running in three easy steps.</p>
+    <div class="steps-grid">
+      <a href="/servers" class="step-card">
+        <div class="step-number">1</div>
+        <h3>Start with Servers</h3>
+        <p>Manage your MCP servers visually &mdash; add, remove, configure, and monitor connections in one place.</p>
+      </a>
+      <a href="/marketplace" class="step-card">
+        <div class="step-number">2</div>
+        <h3>Browse the Marketplace</h3>
+        <p>Discover and install new tools, plugins, and integrations from the community marketplace.</p>
+      </a>
+      <a href="/usage" class="step-card">
+        <div class="step-number">3</div>
+        <h3>See your Usage</h3>
+        <p>Track tokens, costs, and activity over time with interactive charts and breakdowns.</p>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Quick Actions ── -->
+  <div class="section">
+    <h2 class="section-heading">Quick Actions</h2>
+    <p class="section-sub">Jump straight to what you need.</p>
+    <div class="actions-grid">
+      <div class="action-card" id="resumeCard">
+        <div class="action-icon">&#9654;</div>
+        <div>
+          <h4>Resume Last Chat</h4>
+          <p id="resumeDesc" class="loading-pulse">Fetching latest session...</p>
+          <div class="resume-cmd" id="resumeCmd">
+            <code id="resumeCode"></code>
+            <button class="copy-btn" onclick="copyResume()">Copy</button>
+            <button class="run-btn" style="display:none" onclick="runResume()">&#9654; Run</button>
+          </div>
+        </div>
+      </div>
+      <a href="/health" class="action-card">
+        <div class="action-icon">&#128994;</div>
+        <div>
+          <h4>Check Health</h4>
+          <p>Verify CLI, servers, and API connectivity are all working.</p>
+        </div>
+      </a>
+      <a href="/costs" class="action-card">
+        <div class="action-icon">&#128176;</div>
+        <div>
+          <h4>View Costs</h4>
+          <p>See current billing, token usage, and cost projections.</p>
+        </div>
+      </a>
+      <a href="/commands" class="action-card">
+        <div class="action-icon">&#9889;</div>
+        <div>
+          <h4>Slash Commands</h4>
+          <p>Browse all available slash commands and their descriptions.</p>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Feature Categories ── -->
+  <div class="section">
+    <h2 class="section-heading">Explore Features</h2>
+    <p class="section-sub">Everything you need to manage Claude Code, organized by category.</p>
+    <div class="features-grid">
+      <a href="/servers" class="feature-card">
+        <div class="feature-card-header">
+          <div class="feature-card-icon">&#9881;</div>
+          <h3>MCP Management</h3>
+        </div>
+        <p>Configure MCP servers, browse available tools, and manage model providers.</p>
+        <div class="feature-links">
+          <span class="feature-link" onclick="window.location='/servers'">Servers</span>
+          <span class="feature-link" onclick="window.location='/tools'">Tools</span>
+          <span class="feature-link" onclick="window.location='/models'">Models</span>
+        </div>
+      </a>
+      <a href="/skills" class="feature-card">
+        <div class="feature-card-header">
+          <div class="feature-card-icon">&#128268;</div>
+          <h3>Configuration</h3>
+        </div>
+        <p>Set up skills, hooks, permissions, and agent configurations.</p>
+        <div class="feature-links">
+          <span class="feature-link" onclick="window.location='/skills'">Skills</span>
+          <span class="feature-link" onclick="window.location='/hooks'">Hooks</span>
+          <span class="feature-link" onclick="window.location='/permissions'">Permissions</span>
+        </div>
+      </a>
+      <a href="/conversations" class="feature-card">
+        <div class="feature-card-header">
+          <div class="feature-card-icon">&#128488;</div>
+          <h3>Conversations</h3>
+        </div>
+        <p>Replay past chats, manage sessions, and build a prompt library.</p>
+        <div class="feature-links">
+          <span class="feature-link" onclick="window.location='/conversations'">Chat Replay</span>
+          <span class="feature-link" onclick="window.location='/sessions'">Sessions</span>
+          <span class="feature-link" onclick="window.location='/prompts'">Prompts</span>
+        </div>
+      </a>
+      <a href="/usage" class="feature-card">
+        <div class="feature-card-header">
+          <div class="feature-card-icon">&#128202;</div>
+          <h3>Analytics</h3>
+        </div>
+        <p>Visualize usage patterns with interactive charts and estimate future costs.</p>
+        <div class="feature-links">
+          <span class="feature-link" onclick="window.location='/usage'">Usage Charts</span>
+          <span class="feature-link" onclick="window.location='/costs'">Cost Calculator</span>
+        </div>
+      </a>
+      <a href="/docs" class="feature-card">
+        <div class="feature-card-header">
+          <div class="feature-card-icon">&#128196;</div>
+          <h3>Content</h3>
+        </div>
+        <p>Edit CLAUDE.md files, manage memories, and organize project plans.</p>
+        <div class="feature-links">
+          <span class="feature-link" onclick="window.location='/docs'">CLAUDE.md</span>
+          <span class="feature-link" onclick="window.location='/memories'">Memories</span>
+          <span class="feature-link" onclick="window.location='/plans'">Plans</span>
+        </div>
+      </a>
+      <a href="/health" class="feature-card">
+        <div class="feature-card-header">
+          <div class="feature-card-icon">&#128736;</div>
+          <h3>System</h3>
+        </div>
+        <p>Run health checks, inspect storage usage, and debug issues.</p>
+        <div class="feature-links">
+          <span class="feature-link" onclick="window.location='/health'">Health</span>
+          <span class="feature-link" onclick="window.location='/storage'">Storage</span>
+          <span class="feature-link" onclick="window.location='/debug'">Debug</span>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── How to Resume ── -->
+  <div class="section">
+    <h2 class="section-heading">How to Resume a Conversation</h2>
+    <p class="section-sub">Pick up right where you left off in any previous session.</p>
+    <div class="resume-guide">
+      <ol>
+        <li>Go to <a href="/conversations">Conversations</a> or <a href="/sessions">Sessions</a> to browse your chat history.</li>
+        <li>Find your session by topic, date, or keyword search. Click a session in <a href="/sessions">Sessions</a> to open it directly in the Conversations viewer.</li>
+        <li>Click the <strong>"Resume"</strong> button &mdash; this copies the resume command to your clipboard:
+          <code style="display:block;margin:8px 0;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px">cd "PROJECT_DIR"; claude --resume SESSION_ID</code>
+        </li>
+        <li>Paste the command in your terminal (PowerShell or bash) and press Enter.</li>
+      </ol>
+      <div class="resume-tip">
+        <strong>Quick resume options:</strong><br>
+        &bull; <code>claude --continue</code> &mdash; instantly resume the most recent session (any directory)<br>
+        &bull; <code>claude --resume</code> &mdash; opens an interactive picker to choose from recent sessions<br>
+        &bull; <code>claude --resume SESSION_ID</code> &mdash; resume a specific session (must be in the correct project directory)
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Learn More ── -->
+  <div class="section">
+    <h2 class="section-heading">Learn More</h2>
+    <p class="section-sub">Resources to help you get the most out of Claude Code.</p>
+    <div class="learn-grid">
+      <a href="/help" class="learn-card">
+        <div class="learn-icon">&#128214;</div>
+        <h4>Read the Docs</h4>
+        <p>Full documentation and guides</p>
+      </a>
+      <a href="/commands" class="learn-card">
+        <div class="learn-icon">&#9889;</div>
+        <h4>Commands Reference</h4>
+        <p>All slash commands explained</p>
+      </a>
+      <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener" class="learn-card">
+        <div class="learn-icon">&#128187;</div>
+        <h4>View on GitHub</h4>
+        <p>Source code and releases</p>
+      </a>
+      <a href="https://github.com/anthropics/claude-code/issues" target="_blank" rel="noopener" class="learn-card">
+        <div class="learn-icon">&#128030;</div>
+        <h4>Report Issues</h4>
+        <p>Bug reports and feature requests</p>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Claude Code Dashboard &mdash; Built for developers who live in the terminal.
+</div>
+
+<script src="/nav.js"></script>
+<script>renderNav('home')</script>
+<script>
+// ── Fetch health stats ──
+async function loadHealth() {
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+    const statusEl = document.getElementById('heroStatus');
+    const serversEl = document.getElementById('heroServers');
+    const subEl = document.getElementById('heroSub');
+
+    statusEl.classList.remove('loading-pulse');
+    serversEl.classList.remove('loading-pulse');
+    subEl.classList.remove('loading-pulse');
+
+    // Account info from health API
+    const acct = data.account || {};
+    if (acct.email) {
+      statusEl.textContent = 'Logged In';
+      statusEl.className = 'stat-value green';
+    } else {
+      statusEl.textContent = 'Connected';
+      statusEl.className = 'stat-value green';
+    }
+
+    // MCP server count from checks — show enabled + disabled
+    const mcpCheck = (data.checks || []).find(c => c.name === 'MCP Servers');
+    serversEl.textContent = mcpCheck ? mcpCheck.detail : '--';
+
+    // Subscription from account
+    subEl.textContent = acct.subscriptionType || 'API Key';
+  } catch (e) {
+    document.getElementById('heroStatus').textContent = 'Offline';
+    document.getElementById('heroStatus').className = 'stat-value red';
+    document.getElementById('heroStatus').classList.remove('loading-pulse');
+    document.getElementById('heroServers').textContent = '--';
+    document.getElementById('heroServers').classList.remove('loading-pulse');
+    document.getElementById('heroSub').textContent = '--';
+    document.getElementById('heroSub').classList.remove('loading-pulse');
+  }
+}
+
+// ── Fetch latest conversation for resume ──
+async function loadLatestConversation() {
+  try {
+    const res = await fetch('/api/conversations');
+    const data = await res.json();
+    const sessions = data.sessions || [];
+    const descEl = document.getElementById('resumeDesc');
+    const cmdEl = document.getElementById('resumeCmd');
+    const codeEl = document.getElementById('resumeCode');
+
+    if (sessions.length > 0) {
+      const latest = sessions[0];
+      const topic = latest.firstMessage || 'Recent session';
+      const proj = latest.project || '';
+      const displayTopic = topic.length > 50 ? topic.substring(0, 50) + '...' : topic;
+      descEl.textContent = displayTopic;
+      descEl.classList.remove('loading-pulse');
+      // Use --continue (always works for most recent session)
+      codeEl.textContent = 'claude --continue';
+      cmdEl.style.display = 'flex';
+      cmdEl.style.display = 'flex';
+    } else {
+      descEl.textContent = 'No recent sessions found.';
+      descEl.classList.remove('loading-pulse');
+    }
+  } catch (e) {
+    const descEl = document.getElementById('resumeDesc');
+    descEl.textContent = 'Start a session to see it here.';
+    descEl.classList.remove('loading-pulse');
+  }
+}
+
+function copyResume() {
+  const code = document.getElementById('resumeCode').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+function runResume() {
+  const code = document.getElementById('resumeCode').textContent;
+  if (code && window.electronAPI?.isElectron) {
+    runInTerminal(code);
+  }
+}
+
+loadHealth();
+loadLatestConversation();
+</script>
+</body>
+</html>

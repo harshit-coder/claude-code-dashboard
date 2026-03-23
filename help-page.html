@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Help & Learning Center - Claude Code Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 0;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header h1 .icon { font-size: 1.6rem; }
+
+.nav-bar {
+  padding: 0 32px;
+}
+
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 32px 60px;
+}
+
+/* Table of contents */
+.toc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 28px;
+}
+
+.toc h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.toc-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 24px;
+}
+
+.toc-list a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 4px 0;
+  display: block;
+  transition: color 0.15s;
+}
+
+.toc-list a:hover { color: #a29bfe; }
+
+/* Section cards */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 28px 24px;
+  margin-bottom: 20px;
+}
+
+.section h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section h2 .s-icon {
+  font-size: 1.2rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  border-radius: 8px;
+}
+
+.section p, .section li {
+  color: var(--text-dim);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.section p { margin-bottom: 10px; }
+
+.section ul, .section ol {
+  padding-left: 20px;
+  margin-bottom: 12px;
+}
+
+.section li { margin-bottom: 6px; }
+
+.section strong { color: var(--text); }
+
+/* Welcome banner */
+.welcome-banner {
+  background: linear-gradient(135deg, var(--accent) 0%, #4a3fbf 100%);
+  border: none;
+  text-align: center;
+  padding: 40px 28px;
+}
+
+.welcome-banner h2 {
+  justify-content: center;
+  font-size: 1.6rem;
+  color: #fff;
+}
+
+.welcome-banner p {
+  color: rgba(255,255,255,0.85);
+  font-size: 1rem;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+/* Quick start steps */
+.steps {
+  list-style: none;
+  padding: 0;
+  counter-reset: step;
+}
+
+.steps li {
+  counter-increment: step;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.steps li:last-child { border-bottom: none; }
+
+.steps li::before {
+  content: counter(step);
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+code, .code-block {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.83rem;
+  color: var(--green);
+}
+
+.code-block {
+  display: block;
+  padding: 12px 16px;
+  margin: 10px 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* MCP diagram */
+.mcp-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  margin: 14px 0;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.mcp-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.mcp-box.highlight { border-color: var(--accent); color: var(--accent); }
+
+.mcp-arrow { color: var(--text-dim); font-size: 1.2rem; }
+
+/* Pages guide */
+.level-label {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+}
+
+.level-label.beginner { background: var(--green); color: #000; }
+.level-label.intermediate { background: var(--orange); color: #000; }
+.level-label.advanced { background: var(--red); color: #fff; }
+
+.pages-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.page-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.88rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.page-item:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+.page-item .pi-icon { font-size: 1.1rem; }
+
+.page-item .pi-path {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+/* Issue cards */
+.issue-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+
+.issue-card .issue-q {
+  font-weight: 600;
+  color: var(--orange);
+  font-size: 0.88rem;
+  margin-bottom: 6px;
+}
+
+.issue-card .issue-a {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Resource links */
+.resources-list {
+  list-style: none;
+  padding: 0;
+}
+
+.resources-list li {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.resources-list a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.resources-list a:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+
+.resources-list .r-icon { font-size: 1.1rem; }
+
+@media (max-width: 700px) {
+  .container { padding: 16px; }
+  .section { padding: 20px 18px; }
+  .toc-list, .pages-grid { grid-template-columns: 1fr; }
+  .mcp-flow { flex-direction: column; }
+  .mcp-arrow { transform: rotate(90deg); }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#10067;</span> Help & Learning Center</h1>
+</div>
+
+<nav class="nav-bar" id="mainNav"></nav>
+
+<div class="container">
+
+  <!-- Table of Contents -->
+  <div class="toc">
+    <h3>On This Page</h3>
+    <ul class="toc-list">
+      <li><a href="#welcome">Welcome</a></li>
+      <li><a href="#quickstart">Quick Start Guide</a></li>
+      <li><a href="#what-is-mcp">What is MCP?</a></li>
+      <li><a href="#what-is-claude-code">What is Claude Code?</a></li>
+      <li><a href="#pages-guide">Dashboard Pages Guide</a></li>
+      <li><a href="#resume">Resuming Conversations</a></li>
+      <li><a href="#common-issues">Common Issues & Fixes</a></li>
+      <li><a href="#resources">Resources</a></li>
+    </ul>
+  </div>
+
+  <!-- 1. Welcome -->
+  <div class="section welcome-banner" id="welcome">
+    <h2>Welcome to Claude Code Dashboard</h2>
+    <p>This dashboard helps you manage every aspect of Claude Code from your browser &mdash; servers, tools, conversations, costs, permissions, and more.</p>
+  </div>
+
+  <!-- 2. Quick Start Guide -->
+  <div class="section" id="quickstart">
+    <h2><span class="s-icon">&#128640;</span> Quick Start Guide</h2>
+    <ol class="steps">
+      <li>
+        <div>
+          <strong>Start the server</strong>
+          <div class="code-block">node mcp-manager-server.js</div>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Open the dashboard</strong>
+          <p>Navigate to <code>http://localhost:3456</code> in your browser.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Explore the navigation</strong>
+          <p>Use the navigation bar at the top to browse all available pages.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Check your setup</strong>
+          <p>Start with the <strong>Health</strong> page to verify everything is working correctly.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <strong>Manage your MCP servers</strong>
+          <p>Go to <strong>Servers</strong> to see, add, or configure your MCP server connections.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- 3. What is MCP? -->
+  <div class="section" id="what-is-mcp">
+    <h2><span class="s-icon">&#128268;</span> What is MCP?</h2>
+    <p><strong>Model Context Protocol (MCP)</strong> is an open standard that connects Claude to external tools and data sources. Think of it as a universal adapter between AI and the services you already use.</p>
+
+    <div class="mcp-flow">
+      <div class="mcp-box highlight">Claude Code</div>
+      <div class="mcp-arrow">&#8594;</div>
+      <div class="mcp-box">MCP Protocol</div>
+      <div class="mcp-arrow">&#8594;</div>
+      <div class="mcp-box">MCP Server</div>
+      <div class="mcp-arrow">&#8594;</div>
+      <div class="mcp-box highlight">GitHub, Slack, DBs...</div>
+    </div>
+
+    <ul>
+      <li><strong>Servers provide tools</strong> &mdash; each MCP server exposes capabilities like reading files, creating PRs, querying databases, or sending messages.</li>
+      <li><strong>Claude discovers tools automatically</strong> &mdash; once a server is connected, Claude sees its tools and can use them without extra configuration.</li>
+      <li><strong>Example:</strong> Add a GitHub MCP server, and Claude can now create pull requests, read issues, review code, and manage repositories.</li>
+    </ul>
+  </div>
+
+  <!-- 4. What is Claude Code? -->
+  <div class="section" id="what-is-claude-code">
+    <h2><span class="s-icon">&#128187;</span> What is Claude Code?</h2>
+    <p><strong>Claude Code</strong> is an AI-powered command-line tool for software development. It runs directly in your terminal and can:</p>
+    <ul>
+      <li><strong>Read and write files</strong> in your project</li>
+      <li><strong>Run shell commands</strong> like build, test, and deploy</li>
+      <li><strong>Search and navigate</strong> large codebases intelligently</li>
+      <li><strong>Connect to MCP servers</strong> for extended capabilities (GitHub, databases, APIs, and more)</li>
+      <li><strong>Remember context</strong> across conversations with memory and session resumption</li>
+    </ul>
+    <p>This dashboard gives you a visual interface to manage Claude Code's configuration, review your usage, and explore its full feature set.</p>
+  </div>
+
+  <!-- 5. Dashboard Pages Guide -->
+  <div class="section" id="pages-guide">
+    <h2><span class="s-icon">&#128506;</span> Dashboard Pages Guide</h2>
+
+    <span class="level-label beginner">Beginner</span>
+    <div class="pages-grid">
+      <a href="/" class="page-item">
+        <span class="pi-icon">&#127968;</span>
+        <div><strong>Home</strong><div class="pi-path">/</div>Overview and quick actions</div>
+      </a>
+      <a href="/health" class="page-item">
+        <span class="pi-icon">&#128154;</span>
+        <div><strong>Health</strong><div class="pi-path">/health</div>Check if everything is working</div>
+      </a>
+      <a href="/commands" class="page-item">
+        <span class="pi-icon">&#128218;</span>
+        <div><strong>Commands</strong><div class="pi-path">/commands</div>Learn all slash commands</div>
+      </a>
+      <a href="/servers" class="page-item">
+        <span class="pi-icon">&#9881;</span>
+        <div><strong>Servers</strong><div class="pi-path">/servers</div>See your MCP servers</div>
+      </a>
+    </div>
+
+    <span class="level-label intermediate">Intermediate</span>
+    <div class="pages-grid">
+      <a href="/marketplace" class="page-item">
+        <span class="pi-icon">&#128722;</span>
+        <div><strong>Marketplace</strong><div class="pi-path">/marketplace</div>Install new MCP servers</div>
+      </a>
+      <a href="/conversations" class="page-item">
+        <span class="pi-icon">&#128488;</span>
+        <div><strong>Conversations</strong><div class="pi-path">/conversations</div>Replay past chats</div>
+      </a>
+      <a href="/usage" class="page-item">
+        <span class="pi-icon">&#128202;</span>
+        <div><strong>Usage</strong><div class="pi-path">/usage</div>See your activity stats</div>
+      </a>
+      <a href="/costs" class="page-item">
+        <span class="pi-icon">&#128176;</span>
+        <div><strong>Costs</strong><div class="pi-path">/costs</div>Track spending</div>
+      </a>
+      <a href="/skills" class="page-item">
+        <span class="pi-icon">&#9889;</span>
+        <div><strong>Skills</strong><div class="pi-path">/skills</div>Create custom slash commands</div>
+      </a>
+    </div>
+
+    <span class="level-label advanced">Advanced</span>
+    <div class="pages-grid">
+      <a href="/hooks" class="page-item">
+        <span class="pi-icon">&#128268;</span>
+        <div><strong>Hooks</strong><div class="pi-path">/hooks</div>Automate actions on events</div>
+      </a>
+      <a href="/permissions" class="page-item">
+        <span class="pi-icon">&#128274;</span>
+        <div><strong>Permissions</strong><div class="pi-path">/permissions</div>Fine-tune access control</div>
+      </a>
+      <a href="/models" class="page-item">
+        <span class="pi-icon">&#129302;</span>
+        <div><strong>Models</strong><div class="pi-path">/models</div>Use alternative models via OpenRouter</div>
+      </a>
+      <a href="/debug" class="page-item">
+        <span class="pi-icon">&#128027;</span>
+        <div><strong>Debug</strong><div class="pi-path">/debug</div>Troubleshoot errors</div>
+      </a>
+      <a href="/health" class="page-item">
+        <span class="pi-icon">&#128154;</span>
+        <div><strong>Config Doctor</strong><div class="pi-path">/health</div>Deep config validation</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 6. Resume a Conversation -->
+  <div class="section" id="resume">
+    <h2><span class="s-icon">&#128260;</span> How to Resume a Conversation</h2>
+    <ol>
+      <li>Go to the <strong>Sessions</strong> or <strong>Conversations</strong> page from the navigation.</li>
+      <li>Find your chat by topic, date, or keyword search.</li>
+      <li>Click <strong>"Resume"</strong> &mdash; this copies the resume command to your clipboard.</li>
+      <li>Paste the command in your terminal:
+        <div class="code-block">claude --resume SESSION_ID</div>
+      </li>
+      <li>Or, to quickly continue the most recent conversation:
+        <div class="code-block">claude --continue</div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- 7. Common Issues & Fixes -->
+  <div class="section" id="common-issues">
+    <h2><span class="s-icon">&#128295;</span> Common Issues & Fixes</h2>
+
+    <div class="issue-card">
+      <div class="issue-q">"MCP server not connecting"</div>
+      <div class="issue-a">Check the <strong>Health</strong> page for diagnostics. Run <strong>Config Doctor</strong> (also on the Health page) to validate your configuration files and find mismatches.</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="issue-q">"Too many tokens used"</div>
+      <div class="issue-a">Visit the <strong>Tools</strong> page to see per-tool token impact. Disable or remove tools you do not use to reduce token consumption.</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="issue-q">"Permission prompts are annoying"</div>
+      <div class="issue-a">Go to the <strong>Permissions</strong> page and set up permission profiles. You can pre-approve trusted tools and commands to skip confirmation prompts.</div>
+    </div>
+
+    <div class="issue-card">
+      <div class="issue-q">"Can't find an old conversation"</div>
+      <div class="issue-a">Use the search feature on the <strong>Conversations</strong> page. You can filter by date, keywords, or session metadata.</div>
+    </div>
+  </div>
+
+  <!-- 8. Resources -->
+  <div class="section" id="resources">
+    <h2><span class="s-icon">&#128214;</span> Resources</h2>
+    <ul class="resources-list">
+      <li>
+        <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener">
+          <span class="r-icon">&#128230;</span> GitHub Repository
+        </a>
+      </li>
+      <li>
+        <a href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener">
+          <span class="r-icon">&#128196;</span> Claude Code Official Docs
+        </a>
+      </li>
+      <li>
+        <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">
+          <span class="r-icon">&#128268;</span> MCP Protocol Documentation
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/anthropics/claude-code/issues" target="_blank" rel="noopener">
+          <span class="r-icon">&#128027;</span> Report Issues
+        </a>
+      </li>
+      <li>
+        <a href="https://github.com/anthropics/claude-code#contributing" target="_blank" rel="noopener">
+          <span class="r-icon">&#129309;</span> Contributing Guide
+        </a>
+      </li>
+    </ul>
+  </div>
+
+</div>
+
+<script src="/nav.js"></script>
+<script>renderNav('help');</script>
+</body>
+</html>

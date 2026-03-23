@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cost Calculator - Claude Code Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; min-height: 100vh; }
+.header { padding: 24px 32px 0; }
+.header h1 { font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.header h1 .icon { font-size: 1.4em; }
+.nav-bar { margin-bottom: 8px; }
+.container { padding: 20px 32px 40px; max-width: 1400px; margin: 0 auto; }
+
+/* Summary Cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.card .label { font-size: 0.82rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.card .value { font-size: 1.6rem; font-weight: 700; }
+.card .sub { font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; }
+.card.green .value { color: var(--green); }
+.card.accent .value { color: var(--accent); }
+.card.orange .value { color: var(--orange); }
+.card.red .value { color: var(--red); }
+
+/* Controls row */
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px; }
+.controls label { font-size: 0.85rem; color: var(--text-dim); }
+.controls select, .controls button {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 14px; font-size: 0.85rem; cursor: pointer;
+}
+.controls select:hover, .controls button:hover { border-color: var(--accent); }
+.controls button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin-bottom: 28px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--text-dim); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; background: var(--surface); position: sticky; top: 0; }
+td:first-child, th:first-child { text-align: left; }
+tr:hover td { background: var(--surface2); }
+.total-row td { font-weight: 700; border-top: 2px solid var(--accent); }
+
+/* Chart */
+.chart-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 28px; }
+.chart-section h2 { font-size: 1rem; margin-bottom: 12px; }
+.chart-controls { display: flex; gap: 8px; margin-bottom: 14px; }
+.chart-controls button {
+  background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer;
+}
+.chart-controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+canvas { width: 100%; height: 260px; display: block; }
+
+/* Price Editor */
+.editor-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 28px; }
+.editor-section h2 { font-size: 1rem; margin-bottom: 12px; }
+.editor-section input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 5px 8px; width: 90px; font-size: 0.82rem; text-align: right;
+}
+.editor-section input:focus { outline: none; border-color: var(--accent); }
+.editor-actions { margin-top: 12px; display: flex; gap: 10px; }
+.editor-actions button {
+  padding: 8px 18px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--accent); color: #fff; font-size: 0.85rem; cursor: pointer;
+}
+.editor-actions button.secondary { background: var(--surface2); color: var(--text); }
+.editor-actions button:hover { opacity: 0.9; }
+
+/* Usage window bars */
+.usage-bar-row { margin-bottom: 16px; }
+.usage-bar-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.usage-bar-label .name { font-size: 0.85rem; font-weight: 600; }
+.usage-bar-label .pct { font-size: 0.82rem; font-weight: 600; }
+.usage-bar-track { width: 100%; height: 10px; background: var(--surface2); border-radius: 5px; overflow: hidden; }
+.usage-bar-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
+.usage-bar-fill.green { background: var(--green); }
+.usage-bar-fill.orange { background: var(--orange); }
+.usage-bar-fill.red { background: var(--red); }
+.usage-bar-sub { font-size: 0.78rem; color: var(--text-dim); margin-top: 3px; }
+
+/* Loading / error */
+.status-msg { text-align: center; padding: 40px; color: var(--text-dim); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#128176;</span> Cost Calculator</h1></div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('costs')</script>
+
+<div class="container">
+  <!-- Currency selector -->
+  <div class="controls">
+    <label>Currency:</label>
+    <select id="currencySelect">
+      <option value="USD">USD</option>
+      <option value="INR">INR</option>
+      <option value="EUR">EUR</option>
+      <option value="GBP">GBP</option>
+      <option value="JPY">JPY</option>
+      <option value="CAD">CAD</option>
+      <option value="AUD">AUD</option>
+    </select>
+    <span id="rateDisplay" style="font-size:0.8rem;color:var(--text-dim)"></span>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="cards">
+    <div class="card accent"><div class="label">Total Cost (USD)</div><div class="value" id="cardCostUSD">--</div></div>
+    <div class="card accent"><div class="label">Total Cost (<span id="cardCurrLabel">USD</span>)</div><div class="value" id="cardCostConverted">--</div></div>
+    <div class="card green"><div class="label">Cache Savings</div><div class="value" id="cardCacheSavings">--</div><div class="sub" id="cardCacheSub"></div></div>
+    <div class="card"><div class="label">Total Tokens</div><div class="value" id="cardTotalTokens">--</div><div class="sub" id="cardTokenSub"></div></div>
+    <div class="card"><div class="label">Burn Rate</div><div class="value" id="cardBurnRate">--</div><div class="sub" id="cardBurnSub">avg over last 7 days</div></div>
+    <div class="card"><div class="label">Rate Limit Status</div><div class="value" id="cardRateLimit">--</div><div class="sub" id="cardRateLimitSub"></div></div>
+  </div>
+
+  <!-- Usage Windows -->
+  <div class="chart-section" id="usageWindows" style="display:none;">
+    <h2 style="font-size:1rem;margin-bottom:16px;">Usage Windows</h2>
+    <div id="usageWindowBars"></div>
+  </div>
+
+  <!-- Cost Breakdown Table -->
+  <h2 style="font-size:1rem;margin-bottom:12px;">Cost Breakdown by Model</h2>
+  <div class="table-wrap">
+    <table id="breakdownTable">
+      <thead>
+        <tr>
+          <th>Model</th><th>Input Tokens</th><th>Output Tokens</th><th>Cache Read</th><th>Cache Create</th>
+          <th>Input Cost</th><th>Output Cost</th><th>Cache Cost</th><th>Total Cost</th>
+        </tr>
+      </thead>
+      <tbody id="breakdownBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Daily Cost Chart -->
+  <div class="chart-section">
+    <h2>Daily Cost</h2>
+    <div class="chart-controls" id="chartControls">
+      <button data-days="7" class="active">7d</button>
+      <button data-days="14">14d</button>
+      <button data-days="30">30d</button>
+      <button data-days="0">All</button>
+    </div>
+    <canvas id="dailyChart"></canvas>
+  </div>
+
+  <!-- Price Editor -->
+  <div class="editor-section">
+    <h2>Price Editor (per million tokens, USD)</h2>
+    <div class="table-wrap">
+      <table id="priceTable">
+        <thead>
+          <tr><th>Model</th><th>Input</th><th>Output</th><th>Cache Read</th><th>Cache Create</th></tr>
+        </thead>
+        <tbody id="priceBody"></tbody>
+      </table>
+    </div>
+    <div class="editor-actions">
+      <button onclick="savePrices()">Save Prices</button>
+      <button class="secondary" onclick="resetPrices()">Reset to Defaults</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_PRICING = {
+  'claude-sonnet-4-6':           { input: 3,  output: 15, cacheRead: 0.30,  cacheCreate: 3.75 },
+  'claude-opus-4-6':             { input: 15, output: 75, cacheRead: 1.50,  cacheCreate: 18.75 },
+  'claude-opus-4-5-20251101':    { input: 15, output: 75, cacheRead: 1.50,  cacheCreate: 18.75 },
+  'minimax/minimax-m2.5-20260211': { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 },
+  'moonshotai/kimi-k2.5-0127':   { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 },
+  'stepfun/step-3.5-flash:free': { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 },
+};
+
+const STORAGE_KEY = 'claude-cost-pricing';
+let pricing = loadPricing();
+let statsData = null;
+let exchangeRate = 1;
+let selectedCurrency = 'USD';
+let chartDays = 7;
+
+// Model colors for chart
+const MODEL_COLORS = ['#6c5ce7','#00b894','#e74c3c','#f39c12','#0984e3','#fd79a8','#00cec9','#e17055'];
+
+function loadPricing() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Merge with defaults so new models get default prices
+      return { ...DEFAULT_PRICING, ...parsed };
+    }
+  } catch(e) {}
+  return { ...DEFAULT_PRICING };
+}
+
+function savePrices() {
+  const rows = document.querySelectorAll('#priceBody tr');
+  rows.forEach(row => {
+    const model = row.dataset.model;
+    const inputs = row.querySelectorAll('input');
+    pricing[model] = {
+      input: parseFloat(inputs[0].value) || 0,
+      output: parseFloat(inputs[1].value) || 0,
+      cacheRead: parseFloat(inputs[2].value) || 0,
+      cacheCreate: parseFloat(inputs[3].value) || 0,
+    };
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(pricing));
+  recalculate();
+}
+
+function resetPrices() {
+  pricing = { ...DEFAULT_PRICING };
+  localStorage.removeItem(STORAGE_KEY);
+  renderPriceEditor();
+  recalculate();
+}
+
+function getPricing(model) {
+  if (pricing[model]) return pricing[model];
+  // Try partial match
+  for (const key of Object.keys(pricing)) {
+    if (model.includes(key) || key.includes(model)) return pricing[key];
+  }
+  return { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
+}
+
+function fmt(n) {
+  if (n >= 1e9) return (n/1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+
+function fmtCost(n, currency) {
+  const c = currency || selectedCurrency;
+  const sym = {USD:'$',INR:'\u20B9',EUR:'\u20AC',GBP:'\u00A3',JPY:'\u00A5',CAD:'C$',AUD:'A$'}[c] || c+' ';
+  const decimals = c === 'JPY' ? 0 : 2;
+  return sym + (n).toFixed(decimals);
+}
+
+function calcModelCost(m, p) {
+  const inputCost = (m.inputTokens || 0) / 1e6 * p.input;
+  const outputCost = (m.outputTokens || 0) / 1e6 * p.output;
+  const cacheReadCost = (m.cacheReadInputTokens || 0) / 1e6 * p.cacheRead;
+  const cacheCreateCost = (m.cacheCreationInputTokens || 0) / 1e6 * p.cacheCreate;
+  return { inputCost, outputCost, cacheReadCost, cacheCreateCost, total: inputCost + outputCost + cacheReadCost + cacheCreateCost };
+}
+
+function recalculate() {
+  if (!statsData) return;
+  const mu = statsData.modelUsage || {};
+  let totalCostUSD = 0;
+  let totalTokens = 0;
+  let totalCacheSavings = 0;
+  const rows = [];
+
+  for (const [model, m] of Object.entries(mu)) {
+    const p = getPricing(model);
+    const costs = calcModelCost(m, p);
+    totalCostUSD += costs.total;
+    const tokens = (m.inputTokens||0) + (m.outputTokens||0) + (m.cacheReadInputTokens||0) + (m.cacheCreationInputTokens||0);
+    totalTokens += tokens;
+    // Cache savings: what cache reads would have cost at full input price
+    const savedAmount = (m.cacheReadInputTokens||0) / 1e6 * p.input - (m.cacheReadInputTokens||0) / 1e6 * p.cacheRead;
+    totalCacheSavings += savedAmount;
+
+    rows.push({ model, m, p, costs, tokens });
+  }
+
+  const rate = exchangeRate;
+  document.getElementById('cardCostUSD').textContent = fmtCost(totalCostUSD, 'USD');
+  document.getElementById('cardCostConverted').textContent = fmtCost(totalCostUSD * rate, selectedCurrency);
+  document.getElementById('cardCurrLabel').textContent = selectedCurrency;
+  document.getElementById('cardCacheSavings').textContent = fmtCost(totalCacheSavings * rate, selectedCurrency);
+  document.getElementById('cardCacheSub').textContent = 'saved vs full-price input';
+  document.getElementById('cardTotalTokens').textContent = fmt(totalTokens);
+  document.getElementById('cardTokenSub').textContent = `${statsData.totalMessages||0} msgs / ${statsData.totalSessions||0} sessions`;
+
+  // Breakdown table
+  const tbody = document.getElementById('breakdownBody');
+  tbody.innerHTML = '';
+  rows.sort((a,b) => b.costs.total - a.costs.total);
+  for (const r of rows) {
+    const c = r.costs;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.model}</td>
+      <td>${fmt(r.m.inputTokens||0)}</td>
+      <td>${fmt(r.m.outputTokens||0)}</td>
+      <td>${fmt(r.m.cacheReadInputTokens||0)}</td>
+      <td>${fmt(r.m.cacheCreationInputTokens||0)}</td>
+      <td>${fmtCost(c.inputCost * rate)}</td>
+      <td>${fmtCost(c.outputCost * rate)}</td>
+      <td>${fmtCost((c.cacheReadCost + c.cacheCreateCost) * rate)}</td>
+      <td>${fmtCost(c.total * rate)}</td>`;
+    tbody.appendChild(tr);
+  }
+  // Total row
+  const totalRow = document.createElement('tr');
+  totalRow.className = 'total-row';
+  const tInputCost = rows.reduce((s,r)=>s+r.costs.inputCost,0);
+  const tOutputCost = rows.reduce((s,r)=>s+r.costs.outputCost,0);
+  const tCacheCost = rows.reduce((s,r)=>s+r.costs.cacheReadCost+r.costs.cacheCreateCost,0);
+  totalRow.innerHTML = `
+    <td>TOTAL</td>
+    <td>${fmt(rows.reduce((s,r)=>s+(r.m.inputTokens||0),0))}</td>
+    <td>${fmt(rows.reduce((s,r)=>s+(r.m.outputTokens||0),0))}</td>
+    <td>${fmt(rows.reduce((s,r)=>s+(r.m.cacheReadInputTokens||0),0))}</td>
+    <td>${fmt(rows.reduce((s,r)=>s+(r.m.cacheCreationInputTokens||0),0))}</td>
+    <td>${fmtCost(tInputCost*rate)}</td>
+    <td>${fmtCost(tOutputCost*rate)}</td>
+    <td>${fmtCost(tCacheCost*rate)}</td>
+    <td>${fmtCost(totalCostUSD*rate)}</td>`;
+  tbody.appendChild(totalRow);
+
+  // Burn Rate & Rate Limit Predictor — use dailyModelTokens for accurate token counts
+  const rawDmt = statsData.dailyModelTokens || [];
+  const daysWithTokens = Array.isArray(rawDmt) ? rawDmt : Object.entries(rawDmt).map(([d, t]) => ({ date: d, tokensByModel: t }));
+  const recentTokenDays = daysWithTokens.slice(-7);
+  let avgTokensPerDay = 0;
+  if (recentTokenDays.length > 0) {
+    const totalRecentTokens = recentTokenDays.reduce((s, d) => {
+      const byModel = d.tokensByModel || d;
+      return s + Object.values(byModel).reduce((ss, v) => ss + (typeof v === 'number' ? v : 0), 0);
+    }, 0);
+    avgTokensPerDay = totalRecentTokens / recentTokenDays.length;
+  }
+  // Fallback: use modelUsage total if dailyModelTokens is empty
+  if (avgTokensPerDay === 0 && totalTokens > 0) {
+    const activeDays = (statsData.dailyActivity || []).length || 1;
+    avgTokensPerDay = totalTokens / activeDays;
+  }
+  document.getElementById('cardBurnRate').textContent = fmt(Math.round(avgTokensPerDay)) + ' tokens/day';
+  document.getElementById('cardBurnSub').textContent = 'avg over last ' + recentTokenDays.length + ' days';
+
+  // Rate limit estimation — read subscription from account or default to max
+  const tier = (statsData.subscription || statsData.plan || 'max').toLowerCase();
+  let dailyAllowance;
+  if (tier.includes('max') || tier.includes('5x')) {
+    dailyAllowance = 45e6;
+  } else if (tier.includes('free')) {
+    dailyAllowance = 1e6;
+  } else {
+    // Default to Max 5x estimate
+    dailyAllowance = 45e6;
+  }
+
+  const usagePct = dailyAllowance > 0 ? (avgTokensPerDay / dailyAllowance) * 100 : 0;
+  const hoursLeft = avgTokensPerDay > 0 ? ((dailyAllowance - avgTokensPerDay) / avgTokensPerDay) * 24 : 0;
+
+  const rlCard = document.getElementById('cardRateLimit').parentElement;
+  rlCard.classList.remove('green', 'orange', 'red');
+  if (usagePct >= 80) {
+    rlCard.classList.add('red');
+  } else if (usagePct >= 50) {
+    rlCard.classList.add('orange');
+  } else {
+    rlCard.classList.add('green');
+  }
+  document.getElementById('cardRateLimit').textContent = usagePct.toFixed(1) + '% of daily limit';
+  document.getElementById('cardRateLimitSub').textContent = hoursLeft > 0
+    ? '~' + Math.round(hoursLeft) + ' hours at current pace'
+    : 'no usage data';
+
+  // Usage Windows
+  renderUsageWindows();
+
+  renderChart();
+}
+
+function renderUsageWindows() {
+  if (!statsData) return;
+  const dailyActivity = statsData.dailyActivity || [];
+  if (dailyActivity.length === 0) return;
+
+  const tier = (statsData.subscription || statsData.plan || '').toLowerCase();
+  let dailyLimit;
+  if (tier.includes('max') || tier.includes('5x')) {
+    dailyLimit = 45e6;
+  } else if (tier.includes('pro')) {
+    dailyLimit = 15e6;
+  } else {
+    dailyLimit = 45e6; // default to Max 5x
+  }
+  const weeklyLimit = dailyLimit * 7;
+
+  // 5-Hour Window: estimate tokens used today from dailyModelTokens
+  const today = new Date().toISOString().slice(0, 10);
+  const todayDmt = daysWithTokens.find(d => d.date === today);
+  const hoursElapsed = Math.max(new Date().getHours(), 1);
+  let todayTokens = 0;
+  if (todayDmt) {
+    const byModel = todayDmt.tokensByModel || todayDmt;
+    todayTokens = Object.values(byModel).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+  }
+  const fiveHrTokens = Math.round(todayTokens / hoursElapsed * Math.min(hoursElapsed, 5));
+  const fiveHrLimit = Math.round(dailyLimit / 24 * 5);
+  const fiveHrPct = fiveHrLimit > 0 ? (fiveHrTokens / fiveHrLimit) * 100 : 0;
+
+  // Weekly: sum last 7 days from dailyModelTokens
+  const last7Dmt = daysWithTokens.slice(-7);
+  const weeklyTokens = last7Dmt.reduce((s, d) => {
+    const byModel = d.tokensByModel || d;
+    return s + Object.values(byModel).reduce((ss, v) => ss + (typeof v === 'number' ? v : 0), 0);
+  }, 0);
+  const weeklyPct = weeklyLimit > 0 ? (weeklyTokens / weeklyLimit) * 100 : 0;
+
+  function barColor(pct) { return pct >= 80 ? 'red' : pct >= 50 ? 'orange' : 'green'; }
+  function pctColor(pct) { return pct >= 80 ? 'var(--red)' : pct >= 50 ? 'var(--orange)' : 'var(--green)'; }
+
+  const container = document.getElementById('usageWindowBars');
+  container.innerHTML = `
+    <div class="usage-bar-row">
+      <div class="usage-bar-label">
+        <span class="name">5-Hour Window</span>
+        <span class="pct" style="color:${pctColor(fiveHrPct)}">${fiveHrPct.toFixed(1)}%</span>
+      </div>
+      <div class="usage-bar-track"><div class="usage-bar-fill ${barColor(fiveHrPct)}" style="width:${Math.min(fiveHrPct,100)}%"></div></div>
+      <div class="usage-bar-sub">${fmt(fiveHrTokens)} / ${fmt(fiveHrLimit)} tokens (est. from today's usage)</div>
+    </div>
+    <div class="usage-bar-row">
+      <div class="usage-bar-label">
+        <span class="name">Weekly</span>
+        <span class="pct" style="color:${pctColor(weeklyPct)}">${weeklyPct.toFixed(1)}%</span>
+      </div>
+      <div class="usage-bar-track"><div class="usage-bar-fill ${barColor(weeklyPct)}" style="width:${Math.min(weeklyPct,100)}%"></div></div>
+      <div class="usage-bar-sub">${fmt(weeklyTokens)} / ${fmt(weeklyLimit)} tokens (last 7 days, ${tier.includes('pro') ? 'Pro' : 'Max 5x'} tier)</div>
+    </div>
+  `;
+  document.getElementById('usageWindows').style.display = 'block';
+}
+
+function renderPriceEditor() {
+  const tbody = document.getElementById('priceBody');
+  tbody.innerHTML = '';
+  // Show all models from pricing + any from data
+  const allModels = new Set([...Object.keys(pricing)]);
+  if (statsData?.modelUsage) Object.keys(statsData.modelUsage).forEach(m => allModels.add(m));
+  for (const model of allModels) {
+    const p = getPricing(model);
+    const tr = document.createElement('tr');
+    tr.dataset.model = model;
+    tr.innerHTML = `
+      <td>${model}</td>
+      <td><input type="number" step="0.01" min="0" value="${p.input}"></td>
+      <td><input type="number" step="0.01" min="0" value="${p.output}"></td>
+      <td><input type="number" step="0.01" min="0" value="${p.cacheRead}"></td>
+      <td><input type="number" step="0.01" min="0" value="${p.cacheCreate}"></td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderChart() {
+  if (!statsData?.dailyModelTokens) return;
+  const canvas = document.getElementById('dailyChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Convert array format [{date, tokensByModel}] to {date: tokensByModel}
+  const rawDmt = statsData.dailyModelTokens;
+  const dmt = {};
+  if (Array.isArray(rawDmt)) {
+    rawDmt.forEach(entry => { dmt[entry.date] = entry.tokensByModel || {}; });
+  } else if (rawDmt && typeof rawDmt === 'object') {
+    Object.assign(dmt, rawDmt); // already object format
+  }
+
+  let days = Object.keys(dmt).sort();
+  if (chartDays > 0) days = days.slice(-chartDays);
+  if (days.length === 0) return;
+
+  // Gather all models
+  const allModels = new Set();
+  days.forEach(d => Object.keys(dmt[d] || {}).forEach(m => allModels.add(m)));
+  const models = [...allModels];
+
+  // Compute daily costs in selected currency
+  const dailyCosts = days.map(d => {
+    const perModel = {};
+    let total = 0;
+    models.forEach(m => {
+      const tokens = (dmt[d] || {})[m] || 0;
+      const p = getPricing(m);
+      // dailyModelTokens only has total token count per model, not split by type
+      // Use output pricing as approximation since it's the dominant cost
+      const cost = typeof tokens === 'number'
+        ? tokens / 1e6 * p.output * exchangeRate
+        : ((tokens.inputTokens||0)/1e6*p.input + (tokens.outputTokens||0)/1e6*p.output
+          + (tokens.cacheReadInputTokens||0)/1e6*p.cacheRead + (tokens.cacheCreationInputTokens||0)/1e6*p.cacheCreate) * exchangeRate;
+      perModel[m] = cost;
+      total += cost;
+    });
+    return { day: d, perModel, total };
+  });
+
+  const maxCost = Math.max(...dailyCosts.map(d => d.total), 0.001);
+  const padL = 60, padR = 16, padT = 16, padB = 50;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const barW = Math.min(Math.max(chartW / days.length - 4, 6), 40);
+
+  // Y axis
+  ctx.strokeStyle = '#2e3345'; ctx.lineWidth = 1;
+  const yTicks = 5;
+  ctx.fillStyle = '#8b8fa3'; ctx.font = '11px system-ui';
+  for (let i = 0; i <= yTicks; i++) {
+    const y = padT + chartH - (i/yTicks) * chartH;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    const val = (maxCost * i / yTicks);
+    const sym = {USD:'$',INR:'\u20B9',EUR:'\u20AC',GBP:'\u00A3',JPY:'\u00A5',CAD:'C$',AUD:'A$'}[selectedCurrency]||'';
+    ctx.textAlign = 'right'; ctx.fillText(sym + val.toFixed(2), padL - 6, y + 4);
+  }
+
+  // Bars
+  dailyCosts.forEach((dc, i) => {
+    const x = padL + (i + 0.5) * (chartW / days.length) - barW/2;
+    let yOff = 0;
+    models.forEach((m, mi) => {
+      const cost = dc.perModel[m] || 0;
+      const h = (cost / maxCost) * chartH;
+      ctx.fillStyle = MODEL_COLORS[mi % MODEL_COLORS.length];
+      ctx.fillRect(x, padT + chartH - yOff - h, barW, h);
+      yOff += h;
+    });
+    // X label
+    ctx.fillStyle = '#8b8fa3'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+    const label = dc.day.slice(5); // MM-DD
+    ctx.save();
+    ctx.translate(x + barW/2, padT + chartH + 10);
+    ctx.rotate(-0.5);
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  });
+
+  // Legend
+  const legendY = H - 10;
+  let lx = padL;
+  models.forEach((m, mi) => {
+    ctx.fillStyle = MODEL_COLORS[mi % MODEL_COLORS.length];
+    ctx.fillRect(lx, legendY - 8, 10, 10);
+    ctx.fillStyle = '#8b8fa3'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+    const shortName = m.split('/').pop().slice(0, 18);
+    ctx.fillText(shortName, lx + 14, legendY);
+    lx += ctx.measureText(shortName).width + 28;
+  });
+}
+
+// Chart controls
+document.getElementById('chartControls').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  chartDays = parseInt(e.target.dataset.days);
+  document.querySelectorAll('#chartControls button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  renderChart();
+});
+
+// Currency change
+document.getElementById('currencySelect').addEventListener('change', async e => {
+  selectedCurrency = e.target.value;
+  if (selectedCurrency === 'USD') {
+    exchangeRate = 1;
+    document.getElementById('rateDisplay').textContent = '';
+    recalculate();
+    return;
+  }
+  try {
+    const res = await fetch(`/api/currency?from=USD&to=${selectedCurrency}`);
+    const data = await res.json();
+    exchangeRate = data.rates?.[selectedCurrency] || 1;
+    document.getElementById('rateDisplay').textContent = `1 USD = ${exchangeRate} ${selectedCurrency}`;
+  } catch(e) {
+    exchangeRate = 1;
+    document.getElementById('rateDisplay').textContent = 'Rate fetch failed';
+  }
+  recalculate();
+});
+
+// Resize
+window.addEventListener('resize', () => { if (statsData) renderChart(); });
+
+// Init
+async function init() {
+  try {
+    const res = await fetch('/api/usage/stats');
+    statsData = await res.json();
+  } catch(e) {
+    document.querySelector('.container').innerHTML = '<div class="status-msg">Failed to load usage stats. Is the dashboard server running on port 3456?</div>';
+    return;
+  }
+  renderPriceEditor();
+  recalculate();
+  // Ensure chart renders after layout is ready
+  setTimeout(() => renderChart(), 100);
+}
+
+init();
+</script>
+</body>
+</html>

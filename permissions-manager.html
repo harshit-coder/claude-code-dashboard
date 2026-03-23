@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Permissions Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 24px 32px 12px;
+  }
+
+  .header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header h1 .icon { font-size: 1.4rem; }
+
+  .nav-bar {
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 32px 60px;
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .toolbar .status {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  .toolbar .status.unsaved { color: var(--orange); font-weight: 600; }
+
+  .btn {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-dim { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+
+  .btn-group { display: flex; gap: 8px; }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .section-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+
+  .badge-green { background: rgba(0,184,148,0.15); color: var(--green); }
+  .badge-red { background: rgba(231,76,60,0.15); color: var(--red); }
+
+  .entry-list { list-style: none; }
+
+  .entry-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+
+  .entry-item:last-child { border-bottom: none; }
+  .entry-item:hover { background: rgba(108,92,231,0.04); }
+
+  .entry-name {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.88rem;
+  }
+
+  .entry-remove {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .entry-remove:hover { color: var(--red); background: rgba(231,76,60,0.1); }
+
+  .empty-state {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .modal-overlay.active { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 480px;
+    max-width: 90vw;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .modal h3 {
+    font-size: 1.1rem;
+    margin-bottom: 16px;
+  }
+
+  .modal label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .modal input, .modal select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    outline: none;
+    font-family: inherit;
+  }
+
+  .modal input:focus, .modal select:focus {
+    border-color: var(--accent);
+  }
+
+  .modal .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .modal .suggestion-chip {
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .suggestion-chip:hover { border-color: var(--accent); color: var(--text); }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #fff;
+    animation: toastIn 0.25s ease, toastOut 0.3s ease 2.7s forwards;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .toast-success { background: var(--green); }
+  .toast-error { background: var(--red); }
+  .toast-warning { background: var(--orange); }
+
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+
+  .loading-spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Profile selector */
+  .profile-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+
+  .profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .profile-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .profile-body {
+    padding: 16px 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .profile-btn {
+    padding: 8px 20px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  .profile-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  .profile-btn.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .profile-apply {
+    margin-left: auto;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="icon">&#128274;</span> Permissions Manager</h1>
+</div>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('permissions')</script>
+
+<div class="container">
+  <div class="toolbar">
+    <span class="status" id="statusText">Loading...</span>
+    <div class="btn-group">
+      <button class="btn btn-dim" onclick="fetchPermissions()">Reload</button>
+      <button class="btn btn-green" id="saveBtn" onclick="savePermissions()" disabled>Save Changes</button>
+    </div>
+  </div>
+
+  <!-- Permission Profiles -->
+  <div class="profile-section">
+    <div class="profile-header">
+      <h2>Permission Profiles</h2>
+    </div>
+    <div class="profile-body">
+      <button class="profile-btn" id="profileDev" onclick="selectProfile('dev')">Dev Mode</button>
+      <button class="profile-btn" id="profileSafe" onclick="selectProfile('safe')">Safe Mode</button>
+      <button class="profile-btn active" id="profileCustom" onclick="selectProfile('custom')">Custom</button>
+      <button class="btn btn-accent profile-apply" id="applyProfileBtn" onclick="applyProfile()" style="display:none">Apply Profile</button>
+    </div>
+  </div>
+
+  <!-- Allow List -->
+  <div class="section">
+    <div class="section-header">
+      <h2><span class="badge badge-green">ALLOW</span> Allowed Permissions</h2>
+      <button class="btn btn-accent" onclick="openModal('allow')">+ Add</button>
+    </div>
+    <ul class="entry-list" id="allowList"></ul>
+  </div>
+
+  <!-- Deny List -->
+  <div class="section">
+    <div class="section-header">
+      <h2><span class="badge badge-red">DENY</span> Denied Permissions</h2>
+      <button class="btn btn-accent" onclick="openModal('deny')">+ Add</button>
+    </div>
+    <ul class="entry-list" id="denyList"></ul>
+  </div>
+</div>
+
+<!-- Add Entry Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Permission Entry</h3>
+    <label>List</label>
+    <select id="modalList">
+      <option value="allow">Allow</option>
+      <option value="deny">Deny</option>
+    </select>
+    <label>Permission Entry</label>
+    <input type="text" id="modalInput" placeholder="e.g. Bash(git:*)" autocomplete="off" />
+    <label>Common entries</label>
+    <div class="suggestions" id="suggestions"></div>
+    <div class="modal-actions">
+      <button class="btn btn-dim" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="addEntry()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const API_URL = 'http://localhost:3456/api/settings-local';
+let settings = null;
+let originalJSON = '';
+let dirty = false;
+
+const COMMON_ENTRIES = [
+  'Bash(git:*)', 'Bash(npm:*)', 'Bash(npx:*)', 'Bash(node:*)',
+  'Bash(python:*)', 'Bash(pip:*)', 'Bash(cargo:*)',
+  'Edit', 'Read', 'Write', 'Glob', 'Grep',
+  'WebSearch', 'WebFetch',
+  'mcp__servername__toolname',
+];
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function markDirty() {
+  dirty = true;
+  document.getElementById('saveBtn').disabled = false;
+  document.getElementById('statusText').textContent = 'Unsaved changes';
+  document.getElementById('statusText').className = 'status unsaved';
+}
+
+function markClean() {
+  dirty = false;
+  document.getElementById('saveBtn').disabled = true;
+  document.getElementById('statusText').textContent = 'All changes saved';
+  document.getElementById('statusText').className = 'status';
+}
+
+function renderList(listId, items, listType) {
+  const ul = document.getElementById(listId);
+  if (!items || items.length === 0) {
+    ul.innerHTML = '<li class="empty-state">No entries yet. Click "+ Add" to create one.</li>';
+    return;
+  }
+  ul.innerHTML = items.map((entry, i) => `
+    <li class="entry-item">
+      <span class="entry-name">${escapeHtml(entry)}</span>
+      <button class="entry-remove" title="Remove" onclick="removeEntry('${listType}', ${i})">&times;</button>
+    </li>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function render() {
+  const perms = settings.data.permissions || { allow: [], deny: [] };
+  renderList('allowList', perms.allow, 'allow');
+  renderList('denyList', perms.deny, 'deny');
+}
+
+async function fetchPermissions() {
+  document.getElementById('statusText').textContent = 'Loading...';
+  document.getElementById('statusText').className = 'status';
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    settings = await res.json();
+    if (!settings.data) settings.data = {};
+    if (!settings.data.permissions) settings.data.permissions = { allow: [], deny: [] };
+    if (!settings.data.permissions.allow) settings.data.permissions.allow = [];
+    if (!settings.data.permissions.deny) settings.data.permissions.deny = [];
+    originalJSON = JSON.stringify(settings);
+    render();
+    markClean();
+    toast('Permissions loaded');
+  } catch (e) {
+    document.getElementById('statusText').textContent = 'Failed to load';
+    document.getElementById('statusText').className = 'status unsaved';
+    toast('Failed to fetch permissions: ' + e.message, 'error');
+  }
+}
+
+async function savePermissions() {
+  if (!settings) return;
+  document.getElementById('saveBtn').disabled = true;
+  document.getElementById('statusText').textContent = 'Saving...';
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    originalJSON = JSON.stringify(settings);
+    markClean();
+    toast('Permissions saved successfully');
+  } catch (e) {
+    document.getElementById('saveBtn').disabled = false;
+    document.getElementById('statusText').textContent = 'Save failed';
+    document.getElementById('statusText').className = 'status unsaved';
+    toast('Failed to save: ' + e.message, 'error');
+  }
+}
+
+function removeEntry(listType, index) {
+  if (!settings) return;
+  const removed = settings.data.permissions[listType].splice(index, 1);
+  render();
+  markDirty();
+  toast(`Removed "${removed[0]}"`, 'warning');
+}
+
+function openModal(listType) {
+  document.getElementById('modalList').value = listType;
+  document.getElementById('modalInput').value = '';
+  document.getElementById('modalTitle').textContent = `Add to ${listType === 'allow' ? 'Allow' : 'Deny'} List`;
+  renderSuggestions();
+  document.getElementById('modal').classList.add('active');
+  setTimeout(() => document.getElementById('modalInput').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('active');
+}
+
+function renderSuggestions() {
+  const container = document.getElementById('suggestions');
+  container.innerHTML = COMMON_ENTRIES.map(e =>
+    `<span class="suggestion-chip" onclick="document.getElementById('modalInput').value='${e}'">${e}</span>`
+  ).join('');
+}
+
+function addEntry() {
+  const value = document.getElementById('modalInput').value.trim();
+  if (!value) { toast('Please enter a permission entry', 'error'); return; }
+  const listType = document.getElementById('modalList').value;
+  if (!settings) return;
+  if (settings.data.permissions[listType].includes(value)) {
+    toast('Entry already exists in this list', 'warning');
+    return;
+  }
+  settings.data.permissions[listType].push(value);
+  render();
+  markDirty();
+  closeModal();
+  toast(`Added "${value}" to ${listType} list`);
+}
+
+// ── Permission Profiles ──
+const PROFILES = {
+  dev: {
+    allow: ['Bash(*)', 'Edit', 'Write', 'Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Agent'],
+    deny: []
+  },
+  safe: {
+    allow: ['Read', 'Glob', 'Grep'],
+    deny: ['Bash(*)', 'Write', 'Edit']
+  }
+};
+
+let selectedProfile = 'custom';
+
+function selectProfile(name) {
+  selectedProfile = name;
+  document.getElementById('profileDev').classList.toggle('active', name === 'dev');
+  document.getElementById('profileSafe').classList.toggle('active', name === 'safe');
+  document.getElementById('profileCustom').classList.toggle('active', name === 'custom');
+  document.getElementById('applyProfileBtn').style.display = name === 'custom' ? 'none' : '';
+}
+
+function applyProfile() {
+  if (selectedProfile === 'custom') return;
+  if (!confirm('This will replace your current permissions. Continue?')) return;
+  if (!settings) return;
+  const profile = PROFILES[selectedProfile];
+  settings.data.permissions.allow = [...profile.allow];
+  settings.data.permissions.deny = [...profile.deny];
+  render();
+  markDirty();
+  toast(`Applied "${selectedProfile === 'dev' ? 'Dev Mode' : 'Safe Mode'}" profile`);
+  // Switch back to custom since lists are now manually editable
+  selectProfile('custom');
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('modal').classList.contains('active')) addEntry();
+  if (e.ctrlKey && e.key === 's') { e.preventDefault(); if (dirty) savePermissions(); }
+});
+
+// Unsaved changes warning
+window.addEventListener('beforeunload', (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// Init
+fetchPermissions();
+</script>
+</body>
+</html>

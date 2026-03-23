@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi Console — Claude Code Dashboard</title>
+<link rel="stylesheet" href="/vendor/xterm.css">
+<link rel="stylesheet" href="/terminal/terminal.css">
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.header { padding: 24px 32px 0; }
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header h1 .icon { font-size: 1.6rem; }
+.nav-bar { padding: 0 32px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span class="icon">&#128195;</span> Multi Console</h1>
+  </div>
+  <nav class="nav-bar" id="mainNav"></nav>
+
+  <!-- No Electron fallback -->
+  <div class="no-electron" id="noElectron">
+    <div class="icon">&#128195;</div>
+    <h2>Multi Console requires the Desktop App</h2>
+    <p>Run multiple Claude Code sessions side by side in the Electron desktop app.</p>
+    <p>Run the desktop app with: <code>npm run electron</code></p>
+  </div>
+
+  <!-- Multi Console UI -->
+  <div id="multiUI" style="display:none; flex:1; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="layout-selector" id="layoutSelector">
+        <button class="layout-btn active" data-layout="single" title="Single">&#9634; Single</button>
+        <button class="layout-btn" data-layout="split-h" title="Split Horizontal">&#9646;&#9646; Split H</button>
+        <button class="layout-btn" data-layout="split-v" title="Split Vertical">&#9866; Split V</button>
+        <button class="layout-btn" data-layout="quad" title="Quad">&#9638; Quad</button>
+      </div>
+      <div class="broadcast-toggle" id="broadcastToggle">
+        <input type="checkbox" id="broadcastCheck">
+        <label for="broadcastCheck">&#128225; Broadcast Mode</label>
+      </div>
+    </div>
+
+    <div class="multi-container layout-single" id="multiContainer">
+      <!-- Panes will be created dynamically -->
+    </div>
+
+    <div class="status-bar">
+      <div class="status-left">
+        <span class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Ready</span>
+        </span>
+      </div>
+      <div class="status-right">
+        <span id="paneCount">1 pane</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/nav.js"></script>
+  <script src="/vendor/xterm.js"></script>
+  <script src="/vendor/xterm-addon-fit.js"></script>
+  <script src="/vendor/xterm-addon-web-links.js"></script>
+  <script>
+    renderNav('multi-console');
+
+    // ── State ─────────────────────────────────────────────────────
+    const panes = []; // { id, termId, xterm, fitAddon, paneEl }
+    let currentLayout = 'single';
+    let broadcastMode = false;
+
+    // ── Check Electron ────────────────────────────────────────────
+    if (window.electronAPI?.isElectron) {
+      document.getElementById('noElectron').style.display = 'none';
+      document.getElementById('multiUI').style.display = 'flex';
+      init();
+    }
+
+    async function init() {
+      // Layout buttons
+      document.querySelectorAll('.layout-btn').forEach(btn => {
+        btn.addEventListener('click', () => setLayout(btn.dataset.layout));
+      });
+
+      // Broadcast toggle
+      document.getElementById('broadcastCheck').addEventListener('change', (e) => {
+        broadcastMode = e.target.checked;
+        document.getElementById('broadcastToggle').classList.toggle('active', broadcastMode);
+      });
+
+      // Terminal exit listener
+      window.electronAPI.onTerminalExit((id, code) => {
+        const pane = panes.find(p => p.termId === id);
+        if (pane) {
+          pane.xterm.writeln(`\r\n\x1b[90m[Process exited with code ${code}]\x1b[0m`);
+        }
+      });
+
+      // Window resize
+      window.addEventListener('resize', () => {
+        panes.forEach(p => { if (p.fitAddon) p.fitAddon.fit(); });
+      });
+
+      // Start with single layout
+      setLayout('single');
+    }
+
+    function getPaneCount(layout) {
+      return layout === 'quad' ? 4 : layout === 'single' ? 1 : 2;
+    }
+
+    async function setLayout(layout) {
+      currentLayout = layout;
+      const container = document.getElementById('multiContainer');
+      container.className = `multi-container layout-${layout}`;
+
+      // Update buttons
+      document.querySelectorAll('.layout-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.layout === layout);
+      });
+
+      const needed = getPaneCount(layout);
+      const current = panes.length;
+
+      // Add panes if needed
+      for (let i = current; i < needed; i++) {
+        await createPane(i);
+      }
+
+      // Remove extra panes
+      while (panes.length > needed) {
+        const pane = panes.pop();
+        window.electronAPI.closeTerminal(pane.termId);
+        pane.xterm.dispose();
+        pane.paneEl.remove();
+        if (pane.removeDataListener) pane.removeDataListener();
+      }
+
+      // Fit all terminals
+      setTimeout(() => {
+        panes.forEach(p => { if (p.fitAddon) p.fitAddon.fit(); });
+      }, 100);
+
+      document.getElementById('paneCount').textContent = `${panes.length} pane${panes.length > 1 ? 's' : ''}`;
+    }
+
+    async function createPane(index) {
+      const result = await window.electronAPI.createTerminal({});
+      if (result.error) return;
+
+      const termId = result.id;
+
+      const xterm = new window.Terminal({
+        theme: {
+          background: '#0f1117',
+          foreground: '#e1e4ed',
+          cursor: '#6c5ce7',
+          cursorAccent: '#0f1117',
+          selectionBackground: 'rgba(108, 92, 231, 0.3)',
+          black: '#0f1117', red: '#e74c3c', green: '#00b894',
+          yellow: '#f39c12', blue: '#6c5ce7', magenta: '#a855f7',
+          cyan: '#00cec9', white: '#e1e4ed',
+          brightBlack: '#636e72', brightRed: '#ff6b6b', brightGreen: '#55efc4',
+          brightYellow: '#ffeaa7', brightBlue: '#a29bfe', brightMagenta: '#d63384',
+          brightCyan: '#81ecec', brightWhite: '#ffffff',
+        },
+        fontSize: 13,
+        fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+        cursorBlink: true,
+        scrollback: 5000,
+      });
+
+      const fitAddon = new window.FitAddon.FitAddon();
+      xterm.loadAddon(fitAddon);
+
+      try {
+        const webLinksAddon = new window.WebLinksAddon.WebLinksAddon();
+        xterm.loadAddon(webLinksAddon);
+      } catch (e) {}
+
+      // Create pane element
+      const paneEl = document.createElement('div');
+      paneEl.className = 'pane';
+      paneEl.innerHTML = `
+        <div class="pane-header">
+          <span>Pane ${index + 1} — ${result.title || 'Terminal'}</span>
+          <span class="status-indicator"><span class="status-dot"></span></span>
+        </div>
+        <div class="pane-terminal" id="pane-term-${termId}"></div>
+      `;
+      document.getElementById('multiContainer').appendChild(paneEl);
+
+      // Open xterm
+      const termContainer = paneEl.querySelector('.pane-terminal');
+      xterm.open(termContainer);
+      setTimeout(() => fitAddon.fit(), 100);
+
+      // Wire data
+      xterm.onData((data) => {
+        window.electronAPI.writeTerminal(termId, data);
+
+        // Broadcast mode: send to all other panes too
+        if (broadcastMode) {
+          panes.forEach(p => {
+            if (p.termId !== termId) {
+              window.electronAPI.writeTerminal(p.termId, data);
+            }
+          });
+        }
+      });
+
+      const removeDataListener = window.electronAPI.onTerminalData((id, data) => {
+        if (id === termId) xterm.write(data);
+      });
+
+      xterm.onResize(({ cols, rows }) => {
+        window.electronAPI.resizeTerminal(termId, cols, rows);
+      });
+
+      panes.push({ id: index, termId, xterm, fitAddon, paneEl, removeDataListener });
+    }
+  </script>
+</body>
+</html>

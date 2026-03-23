@@ -1,0 +1,121 @@
+{
+  "name": "claude-code-dashboard",
+  "version": "2.0.0",
+  "description": "The most comprehensive desktop dashboard for managing Claude Code — servers, tools, skills, hooks, permissions, usage analytics, embedded terminal, and more.",
+  "main": "electron/main.js",
+  "bin": {
+    "claude-dashboard": "./mcp-manager-server.js"
+  },
+  "scripts": {
+    "start": "node mcp-manager-server.js",
+    "electron": "electron .",
+    "electron:dev": "electron . --dev",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "postinstall": "node scripts/copy-vendor.js",
+    "rebuild": "electron-builder install-app-deps",
+    "test": "node test-dashboard.js",
+    "generate-icon": "node scripts/generate-icon.js"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "model-context-protocol",
+    "dashboard",
+    "mcp-server",
+    "mcp-manager",
+    "anthropic",
+    "ai-tools",
+    "developer-tools",
+    "desktop-app",
+    "electron"
+  ],
+  "author": "Harshit Kalucha",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "codemirror": "^6.0.2",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-web-links": "^0.9.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "esbuild": "^0.27.4"
+  },
+  "build": {
+    "appId": "com.claude-code-dashboard.app",
+    "productName": "Claude Code Dashboard",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Claude Code Dashboard"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Development"
+    },
+    "files": [
+      "**/*",
+      "!docs/**",
+      "!test-dashboard.js",
+      "!dist/**",
+      "!.git/**",
+      "!scripts/**"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/",
+        "to": "vendor/"
+      }
+    ]
+  },
+  "files": [
+    "mcp-manager-server.js",
+    "dashboard-nav.js",
+    "*.html",
+    "electron/**",
+    "terminal/**",
+    "vendor/**",
+    "assets/**"
+  ]
+}

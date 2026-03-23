@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storage Manager</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  .header {
+    padding: 24px 32px 0;
+  }
+
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header h1 .icon {
+    font-size: 1.6rem;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 32px;
+  }
+
+  .total-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .total-card .label {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .total-card .value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .claude-path {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+    background: var(--surface2);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .chart-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+  }
+
+  .chart-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 12px;
+  }
+
+  .bar-label {
+    min-width: 160px;
+    max-width: 160px;
+    font-size: 0.85rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 28px;
+    background: var(--surface2);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.6s ease;
+    min-width: 2px;
+  }
+
+  .bar-fill.red { background: var(--red); }
+  .bar-fill.orange { background: var(--orange); }
+  .bar-fill.green { background: var(--green); }
+
+  .bar-meta {
+    min-width: 140px;
+    display: flex;
+    gap: 12px;
+    font-size: 0.82rem;
+  }
+
+  .bar-size {
+    font-weight: 600;
+    min-width: 70px;
+    text-align: right;
+  }
+
+  .bar-count {
+    color: var(--text-dim);
+    min-width: 50px;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--text-dim);
+    font-size: 1rem;
+  }
+
+  .loading .spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error {
+    text-align: center;
+    padding: 40px;
+    color: var(--red);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+
+  .error .retry-btn {
+    margin-top: 14px;
+    padding: 8px 20px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  .error .retry-btn:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#128449;</span> Storage</h1></div>
+<div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('storage')</script>
+
+<div class="container">
+  <div id="content">
+    <div class="loading"><div class="spinner"></div><br>Loading storage data...</div>
+  </div>
+</div>
+
+<script>
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function colorClass(sizeBytes) {
+  const mb = sizeBytes / (1024 * 1024);
+  if (mb > 50) return 'red';
+  if (mb > 10) return 'orange';
+  return 'green';
+}
+
+function render(data) {
+  const { breakdown, total, claudeDir } = data;
+  const sorted = [...breakdown].sort((a, b) => b.size - a.size);
+  const maxSize = sorted.length ? sorted[0].size : 1;
+
+  let html = `
+    <div class="total-card">
+      <div>
+        <div class="label">Total Disk Usage</div>
+        <div class="value">${formatSize(total)}</div>
+      </div>
+      <div class="claude-path">${claudeDir}</div>
+    </div>
+    <div class="chart-container">
+      <div class="chart-title">Usage by Directory</div>
+  `;
+
+  for (const item of sorted) {
+    const pct = maxSize > 0 ? (item.size / maxSize) * 100 : 0;
+    const cls = colorClass(item.size);
+    html += `
+      <div class="bar-row">
+        <div class="bar-label" title="${item.path || item.name}">${item.name}</div>
+        <div class="bar-track">
+          <div class="bar-fill ${cls}" style="width:${pct}%"></div>
+        </div>
+        <div class="bar-meta">
+          <span class="bar-size">${formatSize(item.size)}</span>
+          <span class="bar-count">${item.count.toLocaleString()} files</span>
+        </div>
+      </div>
+    `;
+  }
+
+  html += '</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+function showError(msg) {
+  document.getElementById('content').innerHTML = `
+    <div class="error">
+      <div>${msg}</div>
+      <button class="retry-btn" onclick="fetchData()">Retry</button>
+    </div>
+  `;
+}
+
+function fetchData() {
+  document.getElementById('content').innerHTML =
+    '<div class="loading"><div class="spinner"></div><br>Loading storage data...</div>';
+
+  fetch('http://localhost:3456/api/storage')
+    .then(r => {
+      if (!r.ok) throw new Error('Server returned ' + r.status);
+      return r.json();
+    })
+    .then(render)
+    .catch(e => showError('Failed to load storage data: ' + e.message));
+}
+
+fetchData();
+</script>
+</body>
+</html>

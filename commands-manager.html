@@ -1,0 +1,385 @@
+<!--
+  =============================================================================
+  Commands Manager — Slash Commands Reference
+  =============================================================================
+  PURPOSE:
+    Searchable, categorized reference of all Claude Code slash commands.
+    Static content — no API needed.
+
+  HOW TO USE:
+    Start the server:  node mcp-manager-server.js
+    Open http://localhost:3456/commands in your browser.
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slash Commands Reference</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+  }
+
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header p { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+
+  .controls {
+    padding: 16px 32px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 220px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  .filter-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .filter-btn {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .commands-grid {
+    padding: 8px 32px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .category-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    margin-top: 16px;
+    margin-bottom: 4px;
+    padding-left: 4px;
+  }
+
+  .cmd-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+    overflow: hidden;
+  }
+  .cmd-card:hover { border-color: var(--accent); }
+  .cmd-card.expanded { border-color: var(--accent); }
+
+  .cmd-header {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    gap: 14px;
+  }
+
+  .cmd-name {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    min-width: 130px;
+  }
+
+  .cmd-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    flex: 1;
+  }
+
+  .cmd-category-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .cmd-chevron {
+    color: var(--text-dim);
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+  .cmd-card.expanded .cmd-chevron { transform: rotate(90deg); }
+
+  .cmd-details {
+    display: none;
+    padding: 0 18px 16px;
+    border-top: 1px solid var(--border);
+    margin-top: 0;
+  }
+  .cmd-card.expanded .cmd-details { display: block; padding-top: 14px; }
+
+  .detail-section { margin-bottom: 12px; }
+  .detail-section:last-child { margin-bottom: 0; }
+
+  .detail-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .detail-value {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .code-inline {
+    font-family: 'Consolas', 'Monaco', monospace;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .usage-block {
+    font-family: 'Consolas', 'Monaco', monospace;
+    background: var(--bg);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--green);
+    border: 1px solid var(--border);
+  }
+
+  .tip-block {
+    background: rgba(108, 92, 231, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  .stats-bar {
+    padding: 0 32px 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('commands')</script>
+
+<div class="header">
+  <h1>&#128218; Slash Commands Reference</h1>
+  <p>All Claude Code slash commands — search, browse, and learn usage</p>
+</div>
+
+<div class="controls">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search commands... (e.g. /compact, context, model)">
+  <div class="filter-btns" id="filterBtns"></div>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+<div class="commands-grid" id="commandsGrid"></div>
+
+<script>
+const COMMANDS = [
+  // Session
+  { name: '/help', category: 'Session', desc: 'Show help and available commands',
+    usage: '/help', tips: 'Displays all available slash commands and their descriptions. Good starting point for new users.' },
+  { name: '/clear', category: 'Session', desc: 'Clear conversation history',
+    usage: '/clear', tips: 'Resets the conversation context. Use when the model seems confused or you want a fresh start. Does not affect files or settings.' },
+  { name: '/compact', category: 'Session', desc: 'Compress conversation context',
+    usage: '/compact [instructions]\n\nExamples:\n  /compact\n  /compact focus on the auth module',
+    tips: 'Summarizes the conversation to free up context window space. Optionally pass instructions to guide what the summary should focus on. Use when you are running low on context.' },
+  { name: '/cost', category: 'Session', desc: 'Show token usage and costs',
+    usage: '/cost', tips: 'Displays token counts (input/output) and estimated dollar cost for the current session. Useful for monitoring spend.' },
+  { name: '/login', category: 'Session', desc: 'Authenticate with Anthropic',
+    usage: '/login', tips: 'Opens the authentication flow. Required before first use or when your session has expired.' },
+  { name: '/logout', category: 'Session', desc: 'Sign out of current session',
+    usage: '/logout', tips: 'Clears stored credentials. You will need to /login again to continue using Claude Code.' },
+  { name: '/status', category: 'Session', desc: 'Show authentication and account status',
+    usage: '/status', tips: 'Shows current auth state, account type, model info, and feature flags.' },
+  { name: '/resume', category: 'Session', desc: 'Resume a previous session',
+    usage: '/resume [session-id]\n\nExamples:\n  /resume\n  /resume abc123',
+    tips: 'Without an argument, shows a list of recent sessions to pick from. With a session ID, directly resumes that session.' },
+  { name: '/history', category: 'Session', desc: 'Show recent conversation sessions',
+    usage: '/history', tips: 'Lists recent sessions with timestamps and summaries. Use the session ID with /resume to continue a past conversation.' },
+
+  // Configuration
+  { name: '/init', category: 'Configuration', desc: 'Create a CLAUDE.md project file',
+    usage: '/init', tips: 'Generates a CLAUDE.md in the current directory with project context, conventions, and instructions for Claude. Edit this file to customize Claude\'s behavior for your project.' },
+  { name: '/config', category: 'Configuration', desc: 'Open and edit settings',
+    usage: '/config', tips: 'Opens your Claude Code configuration for editing. Settings are stored in ~/.claude/settings.json.' },
+  { name: '/model', category: 'Configuration', desc: 'Change the active model',
+    usage: '/model [model-name]\n\nExamples:\n  /model\n  /model claude-sonnet-4-20250514\n  /model opus',
+    tips: 'Without arguments, shows current model and available options. Shorthand names like "opus" and "sonnet" are supported. Model changes take effect immediately.' },
+  { name: '/permissions', category: 'Configuration', desc: 'Manage tool permissions',
+    usage: '/permissions', tips: 'Configure which tools Claude can use automatically vs. requiring confirmation. Permissions can be set globally or per-project.' },
+  { name: '/hooks', category: 'Configuration', desc: 'Manage event hooks',
+    usage: '/hooks', tips: 'Hooks let you run custom commands on events like PreToolUse, PostToolUse, Notification, etc. Configured in settings.json.' },
+  { name: '/terminal-setup', category: 'Configuration', desc: 'Set up shell integration',
+    usage: '/terminal-setup', tips: 'Installs shell integration for your terminal. Enables features like the notification bell and terminal title updates.' },
+  { name: '/vim', category: 'Configuration', desc: 'Toggle vim keybinding mode',
+    usage: '/vim', tips: 'Enables or disables vim-style keybindings in the input area. When enabled, you can use vim motions for text editing.' },
+
+  // Tools
+  { name: '/mcp', category: 'Tools', desc: 'Manage MCP servers',
+    usage: '/mcp\n\nSubcommands shown interactively.',
+    tips: 'Model Context Protocol servers extend Claude\'s capabilities. Use this to add, remove, or configure MCP servers. Server configs are stored in ~/.claude/settings.json.' },
+  { name: '/doctor', category: 'Tools', desc: 'Diagnose configuration issues',
+    usage: '/doctor', tips: 'Runs diagnostic checks on your Claude Code installation. Checks auth, permissions, MCP servers, and configuration files. Run this when things aren\'t working as expected.' },
+  { name: '/bug', category: 'Tools', desc: 'Report a bug to Anthropic',
+    usage: '/bug', tips: 'Opens the bug reporting flow. Includes relevant diagnostic info automatically. Use when you encounter unexpected behavior.' },
+
+  // Memory
+  { name: '/memory', category: 'Memory', desc: 'Manage auto-memory entries',
+    usage: '/memory', tips: 'Claude can automatically remember important context across sessions. Use this command to view, edit, or clear stored memories. Memories are saved in ~/.claude/memory/.' },
+];
+
+const CATEGORIES = [...new Set(COMMANDS.map(c => c.category))];
+const CATEGORY_COLORS = { Session: '#6c5ce7', Configuration: '#00b894', Tools: '#f39c12', Memory: '#e74c3c' };
+
+let activeCategory = 'all';
+let searchTerm = '';
+
+function renderFilterButtons() {
+  const container = document.getElementById('filterBtns');
+  container.innerHTML = `<button class="filter-btn ${activeCategory === 'all' ? 'active' : ''}" data-cat="all">All</button>` +
+    CATEGORIES.map(c => `<button class="filter-btn ${activeCategory === c ? 'active' : ''}" data-cat="${c}">${c}</button>`).join('');
+  container.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => { activeCategory = btn.dataset.cat; render(); });
+  });
+}
+
+function getFiltered() {
+  return COMMANDS.filter(cmd => {
+    if (activeCategory !== 'all' && cmd.category !== activeCategory) return false;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      return cmd.name.toLowerCase().includes(q) || cmd.desc.toLowerCase().includes(q) ||
+             cmd.category.toLowerCase().includes(q) || cmd.tips.toLowerCase().includes(q);
+    }
+    return true;
+  });
+}
+
+function render() {
+  renderFilterButtons();
+  const filtered = getFiltered();
+  const grid = document.getElementById('commandsGrid');
+  document.getElementById('statsBar').textContent = `Showing ${filtered.length} of ${COMMANDS.length} commands`;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div class="no-results">No commands match your search.</div>';
+    return;
+  }
+
+  // Group by category
+  const grouped = {};
+  filtered.forEach(cmd => {
+    if (!grouped[cmd.category]) grouped[cmd.category] = [];
+    grouped[cmd.category].push(cmd);
+  });
+
+  let html = '';
+  for (const cat of CATEGORIES) {
+    if (!grouped[cat]) continue;
+    html += `<div class="category-label">${cat}</div>`;
+    grouped[cat].forEach(cmd => {
+      html += `
+        <div class="cmd-card" data-cmd="${cmd.name}">
+          <div class="cmd-header" onclick="toggleCard(this)">
+            <span class="cmd-name">${cmd.name}</span>
+            <span class="cmd-desc">${cmd.desc}</span>
+            <span class="cmd-category-badge" style="border-left: 2px solid ${CATEGORY_COLORS[cmd.category] || 'var(--accent)'}">${cmd.category}</span>
+            <span class="cmd-chevron">&#9654;</span>
+          </div>
+          <div class="cmd-details">
+            <div class="detail-section">
+              <div class="detail-label">Usage</div>
+              <div class="usage-block">${cmd.usage.replace(/\n/g, '<br>')}</div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-label">Tips &amp; Notes</div>
+              <div class="tip-block">${cmd.tips}</div>
+            </div>
+          </div>
+        </div>`;
+    });
+  }
+  grid.innerHTML = html;
+}
+
+function toggleCard(headerEl) {
+  const card = headerEl.closest('.cmd-card');
+  card.classList.toggle('expanded');
+}
+
+document.getElementById('searchBox').addEventListener('input', e => {
+  searchTerm = e.target.value.trim();
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

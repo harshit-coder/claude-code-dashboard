@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Runner — Claude Code Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+.header { padding: 24px 32px 0; }
+.header h1 {
+  font-size: 1.8rem; font-weight: 700;
+  display: flex; align-items: center; gap: 10px;
+}
+.header h1 .icon { font-size: 1.6rem; }
+.nav-bar { padding: 0 32px; }
+.container { max-width: 900px; margin: 0 auto; padding: 24px 32px 60px; }
+
+/* ── No Electron ── */
+.no-electron {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; height: 50vh; text-align: center;
+  color: var(--text-dim); gap: 16px;
+}
+.no-electron .ne-icon { font-size: 4rem; }
+.no-electron h2 { font-size: 1.4rem; color: var(--text); }
+.no-electron code { background: var(--surface2); padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+
+/* ── Form ── */
+.prompt-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.form-label { font-size: 13px; font-weight: 600; color: var(--text-dim); margin-bottom: 6px; display: block; }
+.form-textarea {
+  width: 100%; min-height: 100px; padding: 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 14px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  resize: vertical; outline: none;
+}
+.form-textarea:focus { border-color: var(--accent); }
+.form-input {
+  width: 100%; padding: 10px 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px;
+  outline: none;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-row { display: flex; gap: 12px; margin-top: 12px; align-items: flex-end; }
+.form-group { flex: 1; }
+.btn {
+  padding: 10px 20px; border-radius: 8px; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Task List ── */
+.section-title { font-size: 1rem; font-weight: 600; margin: 24px 0 12px; color: var(--text-dim); }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  transition: all 0.15s;
+}
+.task-card:hover { border-color: var(--accent); }
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.task-prompt {
+  font-size: 13px; color: var(--text);
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 600px;
+}
+.task-meta { font-size: 11px; color: var(--text-dim); display: flex; gap: 12px; align-items: center; }
+
+.badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase;
+}
+.badge-queued { background: var(--surface2); color: var(--text-dim); }
+.badge-running { background: rgba(108, 92, 231, 0.2); color: var(--accent); }
+.badge-completed { background: rgba(0, 184, 148, 0.2); color: var(--green); }
+.badge-error { background: rgba(231, 76, 60, 0.2); color: var(--red); }
+.badge-cancelled { background: rgba(243, 156, 18, 0.2); color: var(--orange); }
+
+.btn-sm {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-dim); font-size: 11px;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-sm:hover { border-color: var(--accent); color: var(--text); }
+.btn-cancel { border-color: var(--red); color: var(--red); }
+.btn-cancel:hover { background: var(--red); color: #fff; }
+
+/* ── Output ── */
+.task-output {
+  margin-top: 10px; padding: 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; font-size: 12px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  color: var(--text-dim); white-space: pre-wrap; word-break: break-all;
+  max-height: 300px; overflow-y: auto; display: none;
+}
+.task-output.show { display: block; }
+
+/* ── Spinner ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+
+.empty-state {
+  text-align: center; padding: 40px; color: var(--text-dim);
+  font-size: 14px;
+}
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1><span class="icon">&#129302;</span> Agent Runner</h1>
+  </div>
+  <nav class="nav-bar" id="mainNav"></nav>
+
+  <!-- No Electron fallback -->
+  <div class="no-electron" id="noElectron">
+    <div class="ne-icon">&#129302;</div>
+    <h2>Agent Runner requires the Desktop App</h2>
+    <p>Queue and run Claude Code prompts in the background using the Electron desktop app.</p>
+    <p>Run with: <code>npm run electron</code></p>
+  </div>
+
+  <div class="container" id="agentUI" style="display:none;">
+    <!-- Prompt Form -->
+    <div class="prompt-form">
+      <label class="form-label">Prompt</label>
+      <textarea class="form-textarea cm-editor" id="promptInput" placeholder="Enter a prompt for Claude Code to run in the background..."></textarea>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Working Directory (optional)</label>
+          <input class="form-input" id="cwdInput" placeholder="e.g., C:\Users\you\project">
+        </div>
+        <button class="btn btn-primary" id="queueBtn" onclick="queueTask()">&#9654; Queue Task</button>
+      </div>
+    </div>
+
+    <!-- Running -->
+    <div id="runningSection" style="display:none;">
+      <div class="section-title">&#9654; Running</div>
+      <div class="task-list" id="runningList"></div>
+    </div>
+
+    <!-- Queue -->
+    <div id="queueSection" style="display:none;">
+      <div class="section-title">&#128338; Queued</div>
+      <div class="task-list" id="queueList"></div>
+    </div>
+
+    <!-- History -->
+    <div id="historySection">
+      <div class="section-title">&#128203; History</div>
+      <div class="task-list" id="historyList">
+        <div class="empty-state">No tasks yet. Queue your first prompt above.</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/nav.js"></script>
+  <script>
+    renderNav('agent-runner');
+
+    if (window.electronAPI?.isElectron) {
+      document.getElementById('noElectron').style.display = 'none';
+      document.getElementById('agentUI').style.display = 'block';
+      loadTasks();
+
+      // Live updates
+      window.electronAPI.onAgentUpdate((data) => {
+        renderTasks(data);
+      });
+    }
+
+    async function loadTasks() {
+      try {
+        const data = await window.electronAPI.agentList();
+        renderTasks(data);
+      } catch (e) {
+        console.error('Failed to load tasks:', e);
+      }
+    }
+
+    async function queueTask() {
+      const prompt = document.getElementById('promptInput').value.trim();
+      if (!prompt) return;
+      const cwd = document.getElementById('cwdInput').value.trim() || undefined;
+
+      document.getElementById('queueBtn').disabled = true;
+      try {
+        await window.electronAPI.agentQueue(prompt, cwd);
+        document.getElementById('promptInput').value = '';
+        loadTasks();
+      } catch (e) {
+        alert('Failed to queue: ' + e.message);
+      }
+      document.getElementById('queueBtn').disabled = false;
+    }
+
+    async function cancelTask(id) {
+      await window.electronAPI.agentCancel(id);
+      loadTasks();
+    }
+
+    async function toggleOutput(id) {
+      const el = document.getElementById(`output-${id}`);
+      if (!el) return;
+      if (el.classList.contains('show')) {
+        el.classList.remove('show');
+        return;
+      }
+      // Load output
+      const data = await window.electronAPI.agentOutput(id);
+      el.textContent = data.output || '(no output)';
+      el.classList.add('show');
+    }
+
+    function renderTasks(data) {
+      // Running
+      const runSec = document.getElementById('runningSection');
+      const runList = document.getElementById('runningList');
+      if (data.running) {
+        runSec.style.display = 'block';
+        runList.innerHTML = renderTaskCard(data.running);
+      } else {
+        runSec.style.display = 'none';
+      }
+
+      // Queue
+      const qSec = document.getElementById('queueSection');
+      const qList = document.getElementById('queueList');
+      if (data.queue && data.queue.length > 0) {
+        qSec.style.display = 'block';
+        qList.innerHTML = data.queue.map(t => renderTaskCard(t)).join('');
+      } else {
+        qSec.style.display = 'none';
+      }
+
+      // History
+      const hList = document.getElementById('historyList');
+      const history = data.history || [];
+      if (history.length > 0) {
+        hList.innerHTML = history.map(t => renderTaskCard(t)).join('');
+      } else {
+        hList.innerHTML = '<div class="empty-state">No tasks yet. Queue your first prompt above.</div>';
+      }
+    }
+
+    function renderTaskCard(task) {
+      const statusBadge = `<span class="badge badge-${task.status}">${task.status === 'running' ? '<span class="spinner"></span> ' : ''}${task.status}</span>`;
+      const time = task.startedAt || task.createdAt || '';
+      const timeStr = time ? new Date(time).toLocaleString() : '';
+      const actions = [];
+
+      if (task.status === 'queued' || task.status === 'running') {
+        actions.push(`<button class="btn-sm btn-cancel" onclick="cancelTask(${task.id})">Cancel</button>`);
+      }
+      if (task.status === 'completed' || task.status === 'error') {
+        actions.push(`<button class="btn-sm" onclick="toggleOutput(${task.id})">View Output</button>`);
+      }
+
+      return `
+        <div class="task-card">
+          <div class="task-header">
+            <span class="task-prompt" title="${escHtml(task.prompt)}">${escHtml(task.prompt)}</span>
+            ${statusBadge}
+          </div>
+          <div class="task-meta">
+            <span>${timeStr}</span>
+            ${task.cwd ? `<span>&#128193; ${escHtml(task.cwd)}</span>` : ''}
+            ${actions.join(' ')}
+          </div>
+          <div class="task-output" id="output-${task.id}"></div>
+        </div>`;
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Allow Ctrl+Enter to submit
+    document.getElementById('promptInput')?.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') queueTask();
+    });
+  </script>
+</body>
+</html>

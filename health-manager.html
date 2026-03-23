@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Health Check - Claude Code</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3345;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c5ce7;
+  --green: #00b894;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --radius: 10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.header {
+  padding: 24px 32px 0;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header h1 .icon { font-size: 1.6rem; }
+
+.nav-bar {
+  padding: 0 32px;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+/* Overall status banner */
+.overall-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.overall-status .big-dot {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+.overall-status .big-dot.ok { background: var(--green); }
+.overall-status .big-dot.issues { background: var(--red); }
+.overall-status .big-dot.loading { background: var(--border); }
+
+.overall-status .info h2 { font-size: 1.2rem; font-weight: 600; }
+.overall-status .info p { color: var(--text-dim); font-size: 0.85rem; margin-top: 4px; }
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.toolbar .timestamp {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  margin-left: auto;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+button:hover { opacity: 0.85; }
+
+button.secondary {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* Check rows */
+.checks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: background 0.15s;
+}
+
+.check-row:hover { background: var(--surface2); }
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.ok      { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.warning  { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
+.status-dot.invalid  { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.status-dot.missing  { background: #555; }
+
+.check-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  min-width: 160px;
+}
+
+.check-detail {
+  color: var(--text-dim);
+  font-size: 0.84rem;
+  flex: 1;
+}
+
+.check-path {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  background: var(--bg);
+  padding: 3px 8px;
+  border-radius: 4px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.check-badge.ok      { background: rgba(0,184,148,0.15); color: var(--green); }
+.check-badge.warning  { background: rgba(243,156,18,0.15); color: var(--orange); }
+.check-badge.invalid  { background: rgba(231,76,60,0.15); color: var(--red); }
+.check-badge.missing  { background: rgba(100,100,100,0.15); color: #888; }
+
+/* System info */
+.section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.sys-info {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+}
+
+.sys-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.sys-row:last-child { border-bottom: none; }
+.sys-row .label { color: var(--text-dim); }
+.sys-row .value { font-weight: 500; font-family: 'Consolas', monospace; }
+
+/* Error / loading states */
+.error-msg {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Account card */
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.account-card .acct-email {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.account-card .acct-sub {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.acct-sub.max { background: rgba(0,184,148,0.18); color: var(--green); }
+.acct-sub.pro { background: rgba(108,92,231,0.18); color: #818cf8; }
+.acct-sub.free { background: rgba(100,100,100,0.18); color: #888; }
+
+.account-card .acct-rate {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.account-card .acct-expiry {
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.acct-expiry.expiry-ok { color: var(--green); }
+.acct-expiry.expiry-warn { color: var(--orange); }
+.acct-expiry.expiry-expired { color: var(--red); }
+
+.account-card .acct-not-logged-in {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  font-family: 'Consolas', monospace;
+}
+
+/* Tabs */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 10px 22px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 0;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tab-btn:hover { color: var(--text); opacity: 1; }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Doctor tab */
+.doctor-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.doctor-summary .ds-item {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.ds-item.ds-pass { color: var(--green); }
+.ds-item.ds-warn { color: var(--orange); }
+.ds-item.ds-fail { color: var(--red); }
+
+.doctor-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+
+.doctor-row:hover { background: var(--surface2); }
+
+.doctor-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+
+.doctor-icon.pass { color: var(--green); }
+.doctor-icon.warn { color: var(--orange); }
+.doctor-icon.fail { color: var(--red); }
+
+.doctor-check {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 160px;
+}
+
+.doctor-detail {
+  font-size: 0.84rem;
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.doctor-fix {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  opacity: 0.7;
+  font-family: 'Consolas', monospace;
+  max-width: 300px;
+}
+
+/* Auto-refresh toggle */
+.auto-refresh-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.toggle {
+  width: 36px;
+  height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle.on { background: var(--accent); }
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.toggle.on::after { transform: translateX(16px); }
+</style>
+</head>
+<body>
+
+<div class="header"><h1><span class="icon">&#128154;</span> Health Check</h1></div>
+<div class="nav-bar" id="mainNav"></div><script src="/nav.js"></script><script>renderNav('health')</script>
+
+<div class="container">
+  <!-- Overall Status -->
+  <div class="overall-status" id="overallStatus">
+    <div class="big-dot loading" id="overallDot">&#8230;</div>
+    <div class="info">
+      <h2 id="overallTitle">Loading...</h2>
+      <p id="overallSub">Fetching health data</p>
+    </div>
+  </div>
+
+  <!-- Account Card -->
+  <div class="account-card" id="accountCard" style="display:none;"></div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button onclick="fetchHealth()">Refresh Now</button>
+    <button class="secondary" onclick="exportConfig()">Export Config</button>
+    <div class="auto-refresh-wrap">
+      <div class="toggle" id="autoToggle" onclick="toggleAutoRefresh()"></div>
+      <span>Auto-refresh (30s)</span>
+    </div>
+    <span class="timestamp" id="timestamp">--</span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('health')">Health Checks</button>
+    <button class="tab-btn" onclick="switchTab('doctor')">Config Doctor</button>
+  </div>
+
+  <!-- Health Checks Tab -->
+  <div class="tab-panel active" id="tab-health">
+    <div class="checks-list" id="checksList">
+      <div class="error-msg"><span class="spinner"></span> Loading health checks...</div>
+    </div>
+  </div>
+
+  <!-- Config Doctor Tab -->
+  <div class="tab-panel" id="tab-doctor">
+    <div id="doctorContent">
+      <div class="error-msg">Click this tab to load config doctor results.</div>
+    </div>
+  </div>
+
+  <!-- MCP Auth Status -->
+  <div id="mcpAuthSection" style="display:none; margin-bottom:20px;">
+    <h3 class="section-title">MCP Auth Status</h3>
+    <div id="mcpAuthContent" style="background:rgba(243,156,18,0.08);border:1px solid var(--orange);border-radius:var(--radius);padding:18px 22px;">
+    </div>
+  </div>
+
+  <!-- System Info -->
+  <h3 class="section-title">System Info</h3>
+  <div class="sys-info" id="sysInfo">
+    <div class="sys-row"><span class="label">Platform</span><span class="value" id="siPlatform">--</span></div>
+    <div class="sys-row"><span class="label">User Agent</span><span class="value" id="siUA">--</span></div>
+    <div class="sys-row"><span class="label">Page Loaded</span><span class="value" id="siLoaded">--</span></div>
+    <div class="sys-row"><span class="label">API Endpoint</span><span class="value" id="siEndpoint">--</span></div>
+    <div class="sys-row"><span class="label">Screen</span><span class="value" id="siScreen">--</span></div>
+    <div class="sys-row"><span class="label">Language</span><span class="value" id="siLang">--</span></div>
+    <div class="sys-row"><span class="label">Shell Snapshots</span><span class="value" id="siShellSnapshots">--</span></div>
+  </div>
+</div>
+
+<script>
+let autoRefreshInterval = null;
+let autoRefreshOn = false;
+let doctorLoaded = false;
+
+/* ── Account Card ── */
+function renderAccount(account) {
+  const card = document.getElementById('accountCard');
+  if (!account) {
+    card.style.display = 'flex';
+    card.innerHTML = '<span class="acct-not-logged-in">Not logged in — run: claude login</span>';
+    return;
+  }
+  card.style.display = 'flex';
+  const subCls = (account.subscriptionType || '').toLowerCase();
+  const subClass = subCls === 'max' ? 'max' : subCls === 'pro' ? 'pro' : 'free';
+
+  let expiryClass, expiryText;
+  if (account.expired) {
+    expiryClass = 'expiry-expired';
+    expiryText = 'Expired';
+  } else if (account.expiresIn != null && account.expiresIn <= 30) {
+    expiryClass = 'expiry-warn';
+    expiryText = 'Expires in ' + Math.round(account.expiresIn) + ' min';
+  } else if (account.expiresIn != null) {
+    expiryClass = 'expiry-ok';
+    expiryText = 'Expires in ' + Math.round(account.expiresIn) + ' min';
+  } else {
+    expiryClass = 'expiry-ok';
+    expiryText = '';
+  }
+
+  card.innerHTML = `
+    <span class="acct-email">${esc(account.email || 'Unknown')}</span>
+    <span class="acct-sub ${subClass}">${esc(account.subscriptionType || 'free')}</span>
+    <span class="acct-rate">Rate limit: ${esc(account.rateLimitTier || 'N/A')}</span>
+    <span class="acct-expiry ${expiryClass}">${esc(expiryText)}</span>
+  `;
+}
+
+/* ── Tab switching ── */
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && tab === 'health') || (i === 1 && tab === 'doctor'));
+  });
+  document.getElementById('tab-health').classList.toggle('active', tab === 'health');
+  document.getElementById('tab-doctor').classList.toggle('active', tab === 'doctor');
+  if (tab === 'doctor' && !doctorLoaded) {
+    fetchDoctor();
+  }
+}
+
+/* ── Config Doctor ── */
+async function fetchDoctor() {
+  const wrap = document.getElementById('doctorContent');
+  wrap.innerHTML = '<div class="error-msg"><span class="spinner"></span> Running config doctor...</div>';
+  try {
+    const res = await fetch('http://localhost:3456/api/health/doctor');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    doctorLoaded = true;
+    renderDoctor(data);
+  } catch (err) {
+    wrap.innerHTML = '<div class="error-msg">Failed to fetch doctor results: ' + esc(err.message) + '</div>';
+  }
+}
+
+function renderDoctor(data) {
+  const wrap = document.getElementById('doctorContent');
+  const s = data.summary || { pass: 0, warn: 0, fail: 0 };
+  const issues = (data.issues || []).slice().sort((a, b) => {
+    const order = { fail: 0, warn: 1, pass: 2 };
+    return (order[a.status] ?? 3) - (order[b.status] ?? 3);
+  });
+
+  const iconMap = { pass: '\u2713', warn: '\u26A0', fail: '\u2717' };
+
+  let html = `
+    <div class="doctor-summary">
+      <span class="ds-item ds-pass">${s.pass} passed</span>
+      <span class="ds-item ds-warn">${s.warn} warnings</span>
+      <span class="ds-item ds-fail">${s.fail} failures</span>
+    </div>
+  `;
+
+  if (issues.length === 0) {
+    html += '<div class="error-msg">No issues returned.</div>';
+  } else {
+    html += issues.map(issue => `
+      <div class="doctor-row">
+        <span class="doctor-icon ${issue.status}">${iconMap[issue.status] || '?'}</span>
+        <span class="doctor-check">${esc(issue.check || '')}</span>
+        <span class="doctor-detail">${esc(issue.detail || '')}</span>
+        ${issue.fix && issue.status !== 'pass' ? '<span class="doctor-fix">' + esc(issue.fix) + '</span>' : ''}
+      </div>
+    `).join('');
+  }
+
+  wrap.innerHTML = html;
+}
+
+function populateSystemInfo() {
+  document.getElementById('siPlatform').textContent = navigator.platform || 'N/A';
+  document.getElementById('siUA').textContent = navigator.userAgent.slice(0, 80) + '...';
+  document.getElementById('siLoaded').textContent = new Date().toLocaleString();
+  document.getElementById('siEndpoint').textContent = 'http://localhost:3456/api/health';
+  document.getElementById('siScreen').textContent = screen.width + ' x ' + screen.height;
+  document.getElementById('siLang').textContent = navigator.language || 'N/A';
+}
+
+function setOverall(allOk) {
+  const dot = document.getElementById('overallDot');
+  const title = document.getElementById('overallTitle');
+  const sub = document.getElementById('overallSub');
+  dot.className = 'big-dot ' + (allOk ? 'ok' : 'issues');
+  dot.innerHTML = allOk ? '&#10003;' : '&#10007;';
+  title.textContent = allOk ? 'All Systems Operational' : 'Issues Detected';
+  sub.textContent = allOk
+    ? 'All health checks passed successfully'
+    : 'One or more checks reported problems';
+}
+
+function renderChecks(checks) {
+  const list = document.getElementById('checksList');
+  if (!checks || checks.length === 0) {
+    list.innerHTML = '<div class="error-msg">No checks returned.</div>';
+    return;
+  }
+  list.innerHTML = checks.map(c => {
+    const s = c.status || 'missing';
+    return `<div class="check-row">
+      <div class="status-dot ${s}"></div>
+      <span class="check-name">${esc(c.name)}</span>
+      <span class="check-badge ${s}">${s}</span>
+      <span class="check-detail">${esc(c.detail || '')}</span>
+      <span class="check-path" title="${esc(c.path || '')}">${esc(c.path || '')}</span>
+    </div>`;
+  }).join('');
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function fetchHealth() {
+  const list = document.getElementById('checksList');
+  list.innerHTML = '<div class="error-msg"><span class="spinner"></span> Fetching...</div>';
+  try {
+    const res = await fetch('http://localhost:3456/api/health');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    renderAccount(data.account !== undefined ? data.account : null);
+    renderChecks(data.checks || []);
+    const allOk = (data.checks || []).every(c => c.status === 'ok');
+    setOverall(allOk);
+    const ts = data.timestamp ? new Date(data.timestamp).toLocaleString() : new Date().toLocaleString();
+    document.getElementById('timestamp').textContent = 'Last checked: ' + ts;
+  } catch (err) {
+    list.innerHTML = '<div class="error-msg">Failed to fetch health data: ' + esc(err.message) + '</div>';
+    const dot = document.getElementById('overallDot');
+    dot.className = 'big-dot loading';
+    dot.innerHTML = '?';
+    document.getElementById('overallTitle').textContent = 'Unreachable';
+    document.getElementById('overallSub').textContent = err.message;
+  }
+}
+
+function exportConfig() {
+  window.open('http://localhost:3456/api/export', '_blank');
+}
+
+function toggleAutoRefresh() {
+  autoRefreshOn = !autoRefreshOn;
+  const tog = document.getElementById('autoToggle');
+  tog.className = 'toggle' + (autoRefreshOn ? ' on' : '');
+  if (autoRefreshOn) {
+    autoRefreshInterval = setInterval(fetchHealth, 30000);
+  } else {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+}
+
+async function fetchMcpAuth() {
+  try {
+    const res = await fetch('http://localhost:3456/api/mcp-auth');
+    if (!res.ok) return;
+    const data = await res.json();
+    const needsAuth = data.needsAuth || [];
+    if (needsAuth.length === 0) return;
+    const section = document.getElementById('mcpAuthSection');
+    section.style.display = 'block';
+    const content = document.getElementById('mcpAuthContent');
+    let html = '<div style="font-weight:600;color:var(--orange);margin-bottom:10px;">These MCP servers need authentication:</div>';
+    html += '<ul style="margin:0 0 12px 20px;color:var(--text);font-size:0.88rem;">';
+    for (const name of needsAuth) {
+      html += '<li style="margin-bottom:4px;">' + esc(name) + '</li>';
+    }
+    html += '</ul>';
+    html += '<div style="font-size:0.82rem;color:var(--text-dim);font-family:Consolas,monospace;background:var(--bg);padding:8px 12px;border-radius:6px;">Tip: Run <strong>claude mcp auth</strong> to authenticate these servers</div>';
+    content.innerHTML = html;
+  } catch (e) { /* silently ignore */ }
+}
+
+async function fetchShellSnapshots() {
+  try {
+    const res = await fetch('http://localhost:3456/api/shell-snapshots');
+    if (!res.ok) { document.getElementById('siShellSnapshots').textContent = 'N/A'; return; }
+    const data = await res.json();
+    const snapshots = data.snapshots || data || [];
+    const count = Array.isArray(snapshots) ? snapshots.length : (data.count || 0);
+    let latest = '';
+    if (Array.isArray(snapshots) && snapshots.length > 0) {
+      const last = snapshots[snapshots.length - 1];
+      const ts = last.timestamp || last.date || last.created;
+      if (ts) latest = ' (latest: ' + new Date(ts).toLocaleString() + ')';
+    } else if (data.latestTimestamp) {
+      latest = ' (latest: ' + new Date(data.latestTimestamp).toLocaleString() + ')';
+    }
+    document.getElementById('siShellSnapshots').textContent = count + ' snapshots saved' + latest;
+  } catch (e) {
+    document.getElementById('siShellSnapshots').textContent = 'N/A';
+  }
+}
+
+populateSystemInfo();
+fetchHealth();
+fetchMcpAuth();
+fetchShellSnapshots();
+</script>
+</body>
+</html>

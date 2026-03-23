@@ -1,0 +1,429 @@
+<!--
+  =============================================================================
+  Feature Flags Viewer
+  =============================================================================
+  PURPOSE:
+    View Claude Code feature flags and experiments (Statsig-based).
+    Fetches from GET /api/feature-flags
+
+  HOW TO USE:
+    Start the server:  node mcp-manager-server.js
+    Open http://localhost:3456/flags in your browser.
+  =============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feature Flags</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232735;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6ef7;
+    --green: #00b894;
+    --red: #e74c3c;
+    --orange: #f39c12;
+    --radius: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header-left h1 { font-size: 22px; font-weight: 600; }
+  .header-left p { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:hover { border-color: var(--accent); color: #fff; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+
+  .controls {
+    padding: 16px 32px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 220px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  .stats-bar {
+    padding: 0 32px 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .content { padding: 8px 32px 32px; }
+
+  .info-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .info-box summary {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .info-box summary:hover { color: var(--accent-hover); }
+  .info-box .info-content {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .info-box .info-content strong { color: var(--text); }
+
+  .flag-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    transition: border-color 0.15s;
+  }
+  .flag-card:hover { border-color: var(--accent); }
+
+  .flag-card-header {
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+  .flag-card-header:hover { background: var(--surface2); border-radius: var(--radius); }
+
+  .flag-name {
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-all;
+    flex: 1;
+  }
+
+  .flag-size {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: 12px;
+    white-space: nowrap;
+  }
+
+  .flag-chevron {
+    margin-left: 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: transform 0.2s;
+  }
+  .flag-card.expanded .flag-chevron { transform: rotate(90deg); }
+
+  .flag-card-body {
+    display: none;
+    padding: 0 18px 18px;
+  }
+  .flag-card.expanded .flag-card-body { display: block; }
+
+  .json-view {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+
+  /* JSON syntax highlighting */
+  .json-key { color: #82aaff; }
+  .json-string { color: #c3e88d; }
+  .json-number { color: #f78c6c; }
+  .json-bool { color: #c792ea; }
+  .json-null { color: #ff5370; }
+
+  /* Highlight interesting fields */
+  .hl-feature { background: rgba(108,92,231,0.15); padding: 1px 4px; border-radius: 3px; }
+  .hl-enabled { background: rgba(0,184,148,0.2); padding: 1px 4px; border-radius: 3px; }
+  .hl-disabled { background: rgba(231,76,60,0.2); padding: 1px 4px; border-radius: 3px; }
+  .hl-session { background: rgba(243,156,18,0.15); padding: 1px 4px; border-radius: 3px; }
+
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  .error-box {
+    background: rgba(231,76,60,0.1);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    padding: 16px;
+    color: var(--red);
+    font-size: 13px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-dim);
+  }
+  .empty-state h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; line-height: 1.6; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 2000;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.3s;
+    pointer-events: none;
+  }
+  .toast.visible { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="nav-bar" id="mainNav"></div>
+<script src="/nav.js"></script>
+<script>renderNav('flags')</script>
+
+<div class="header">
+  <div class="header-left">
+    <h1>&#127937; Feature Flags</h1>
+    <p>Claude Code feature flags and experiments</p>
+  </div>
+  <div>
+    <button class="btn btn-primary" onclick="loadFlags()">&#8635; Refresh</button>
+  </div>
+</div>
+
+<div class="controls">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search flag file names or content...">
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="content" id="content">
+  <div class="loading">Loading feature flags...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let flagsData = {};
+let searchTerm = '';
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 2000);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function highlightJSON(jsonStr) {
+  // Highlight JSON syntax
+  let highlighted = esc(jsonStr);
+
+  // Highlight keys
+  highlighted = highlighted.replace(/"([^"]+)"(\s*:)/g, '<span class="json-key">"$1"</span>$2');
+
+  // Highlight string values (after colon)
+  highlighted = highlighted.replace(/:\s*"([^"]*?)"/g, function(match, val) {
+    const lower = val.toLowerCase();
+    // Check for enabled/disabled
+    if (lower === 'true' || lower === 'enabled' || lower === 'on') {
+      return ': <span class="json-string hl-enabled">"' + val + '"</span>';
+    }
+    if (lower === 'false' || lower === 'disabled' || lower === 'off') {
+      return ': <span class="json-string hl-disabled">"' + val + '"</span>';
+    }
+    // Check for session-like IDs
+    if (/^[a-f0-9-]{20,}$/i.test(val) || /session/i.test(val)) {
+      return ': <span class="json-string hl-session">"' + val + '"</span>';
+    }
+    return ': <span class="json-string">"' + val + '"</span>';
+  });
+
+  // Highlight numbers
+  highlighted = highlighted.replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number">$1</span>');
+
+  // Highlight booleans
+  highlighted = highlighted.replace(/:\s*(true|false)/g, function(match, val) {
+    const cls = val === 'true' ? 'json-bool hl-enabled' : 'json-bool hl-disabled';
+    return ': <span class="' + cls + '">' + val + '</span>';
+  });
+
+  // Highlight null
+  highlighted = highlighted.replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+
+  // Highlight feature-like keys
+  const featurePatterns = /class="json-key">"(feature[^"]*|experiment[^"]*|gate[^"]*|flag[^"]*|rollout[^"]*)"/gi;
+  highlighted = highlighted.replace(featurePatterns, 'class="json-key hl-feature">"$1"');
+
+  return highlighted;
+}
+
+function toggleCard(el) {
+  el.closest('.flag-card').classList.toggle('expanded');
+}
+
+function renderFlags() {
+  const container = document.getElementById('content');
+  const entries = Object.entries(flagsData);
+
+  if (entries.length === 0) {
+    document.getElementById('statsBar').textContent = 'No flag files found';
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>No feature flags found</h3>
+        <p>No Statsig flag files were detected for your Claude Code installation.</p>
+      </div>`;
+    return;
+  }
+
+  const filtered = entries.filter(([name, data]) => {
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    const jsonStr = JSON.stringify(data).toLowerCase();
+    return name.toLowerCase().includes(q) || jsonStr.includes(q);
+  });
+
+  document.getElementById('statsBar').textContent = filtered.length === entries.length
+    ? `${entries.length} flag file${entries.length !== 1 ? 's' : ''} found`
+    : `Showing ${filtered.length} of ${entries.length} flag files`;
+
+  let html = `
+    <details class="info-box">
+      <summary>&#9432; What are feature flags?</summary>
+      <div class="info-content">
+        <strong>Anthropic uses Statsig</strong> for A/B testing and feature rollouts in Claude Code.<br><br>
+        Feature flags (also called "gates" or "experiments") allow Anthropic to:<br>
+        &#8226; Gradually roll out new features to a percentage of users<br>
+        &#8226; Run A/B tests comparing different behaviors<br>
+        &#8226; Quickly enable or disable features without a code release<br>
+        &#8226; Target specific user segments for beta testing<br><br>
+        The files shown here contain cached Statsig configuration data stored locally by Claude Code.
+        They include <strong>feature gates</strong> (on/off toggles), <strong>dynamic configs</strong> (runtime settings),
+        and <strong>experiment assignments</strong> (which test group you belong to).<br><br>
+        Your <span class="hl-session">session IDs</span> determine which experiments you're enrolled in.
+        <span class="hl-enabled">Enabled</span> and <span class="hl-disabled">disabled</span> values are highlighted for quick scanning.
+      </div>
+    </details>`;
+
+  if (filtered.length === 0) {
+    html += '<div class="empty-state"><p>No flags match your search.</p></div>';
+  } else {
+    filtered.forEach(([name, data]) => {
+      const jsonStr = JSON.stringify(data, null, 2);
+      const size = new Blob([jsonStr]).size;
+      html += `
+        <div class="flag-card">
+          <div class="flag-card-header" onclick="toggleCard(this)">
+            <span class="flag-name">${esc(name)}</span>
+            <span class="flag-size">${formatBytes(size)}</span>
+            <span class="flag-chevron">&#9654;</span>
+          </div>
+          <div class="flag-card-body">
+            <div class="json-view">${highlightJSON(jsonStr)}</div>
+          </div>
+        </div>`;
+    });
+  }
+
+  container.innerHTML = html;
+}
+
+async function loadFlags() {
+  const container = document.getElementById('content');
+  container.innerHTML = '<div class="loading">Loading feature flags...</div>';
+  document.getElementById('statsBar').textContent = '';
+
+  try {
+    const resp = await fetch('/api/feature-flags');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+    const data = await resp.json();
+    flagsData = data.flags || {};
+    renderFlags();
+  } catch (err) {
+    container.innerHTML = `<div class="error-box">Failed to load feature flags: ${esc(err.message)}</div>`;
+    document.getElementById('statsBar').textContent = '';
+  }
+}
+
+document.getElementById('searchBox').addEventListener('input', e => {
+  searchTerm = e.target.value.trim();
+  renderFlags();
+});
+
+loadFlags();
+</script>
+</body>
+</html>
