@@ -15,6 +15,19 @@ let serverProcess = null;
 let tray = null;
 let serverPort = 3456;
 
+// ── Ensure server is always cleaned up on exit ──────────────────────
+process.on('exit', () => { killServer(); });
+process.on('SIGTERM', () => { killServer(); app.quit(); });
+process.on('SIGINT', () => { killServer(); app.quit(); });
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
+  killServer();
+});
+process.on('unhandledRejection', (err) => {
+  console.error('[Unhandled Rejection]', err);
+  killServer();
+});
+
 // ── Server Management ────────────────────────────────────────────────
 function startServer() {
   return new Promise((resolve, reject) => {
@@ -32,6 +45,11 @@ function startServer() {
       cwd: path.join(__dirname, '..'),
       shell: false,
     });
+
+    // Prevent EPIPE crashes on broken pipes during shutdown
+    serverProcess.stdin.on('error', () => {});
+    serverProcess.stdout.on('error', () => {});
+    serverProcess.stderr.on('error', () => {});
 
     let started = false;
     let outputBuffer = '';
@@ -75,7 +93,15 @@ function startServer() {
 
 function killServer() {
   if (serverProcess && !serverProcess.killed) {
-    serverProcess.kill();
+    // Detach pipe listeners before killing to prevent EPIPE errors
+    serverProcess.stdout.removeAllListeners('data');
+    serverProcess.stderr.removeAllListeners('data');
+    serverProcess.stdin.end();
+    try {
+      serverProcess.kill('SIGTERM');
+    } catch (_) {
+      // Ignore errors if process already exited
+    }
     serverProcess = null;
   }
 }
@@ -201,8 +227,9 @@ app.whenReady().then(async () => {
     ipcMain.handle('app:restart', () => {
       // Relaunch the entire app cleanly
       app.isQuitting = true;
+      killServer();
       app.relaunch();
-      app.quit();
+      setTimeout(() => app.quit(), 200);
       return { status: 'restarting' };
     });
 
@@ -236,7 +263,8 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('app:quit', () => {
       app.isQuitting = true;
-      app.quit();
+      killServer();
+      setTimeout(() => app.quit(), 200);
     });
 
     // ── MCP Server Control ──────────────────────────────────────────
@@ -294,6 +322,7 @@ app.whenReady().then(async () => {
 
   } catch (err) {
     console.error('[Electron] Failed to start:', err);
+    killServer();
     app.quit();
   }
 });
@@ -303,6 +332,11 @@ app.on('activate', () => {
   if (mainWindow) {
     mainWindow.show();
   }
+});
+
+// Kill server early when requested (e.g. from tray Quit)
+app.on('kill-server', () => {
+  killServer();
 });
 
 // Quit properly

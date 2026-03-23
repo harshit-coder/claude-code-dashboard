@@ -71,7 +71,9 @@ function setupTray(mainWindow, app) {
       label: 'Quit',
       click: () => {
         app.isQuitting = true;
-        app.quit();
+        // Emit kill-server before quit to avoid EPIPE on broken pipes
+        app.emit('kill-server');
+        setTimeout(() => app.quit(), 200);
       },
     },
   ]);
