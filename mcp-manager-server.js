@@ -317,12 +317,50 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // API: List Mem0 entities (users)
+  // GET /api/mem0/entities
+  if (req.url.startsWith('/api/mem0/entities') && req.method === 'GET') {
+    let apiKey = '';
+    try {
+      const raw = fs.readFileSync(CLAUDE_JSON_PATH, 'utf8');
+      const data = JSON.parse(raw);
+      apiKey = data.mcpServers?.mem0?.env?.MEM0_API_KEY || '';
+    } catch (_) {}
+
+    if (!apiKey) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'MEM0_API_KEY not found in .claude.json' }));
+      return;
+    }
+
+    const https = require('https');
+    const apiReq = https.request({
+      hostname: 'api.mem0.ai',
+      path: '/v1/entities/',
+      method: 'GET',
+      headers: { 'Authorization': `Token ${apiKey}`, 'Content-Type': 'application/json' }
+    }, (apiRes) => {
+      let data = '';
+      apiRes.on('data', chunk => data += chunk);
+      apiRes.on('end', () => {
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+        res.end(data);
+      });
+    });
+    apiReq.on('error', (e) => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    apiReq.end();
+    return;
+  }
+
   // API: Proxy for Mem0 API
   // GET /api/mem0?endpoint=...
   if (req.url.startsWith('/api/mem0') && req.method === 'GET') {
     const urlObj = new URL(req.url, `http://localhost:${PORT}`);
     const endpoint = urlObj.searchParams.get('endpoint') || '/v1/memories/';
-    const userId = urlObj.searchParams.get('user_id') || 'default';
+    const userId = urlObj.searchParams.get('user_id') || 'himanshu-kumar';
 
     // Read mem0 API key from .claude.json
     let apiKey = '';

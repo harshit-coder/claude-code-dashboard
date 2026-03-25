@@ -389,6 +389,9 @@
     <button class="filter-btn" onclick="setTypeFilter('reference', this)">Reference</button>
   </div>
   <button class="btn" onclick="expandAll()">Expand All</button>
+  <select id="mem0UserSelect" style="display:none; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer;" onchange="onMem0UserChange()">
+    <option value="">Loading entities...</option>
+  </select>
 </div>
 
 <div class="main">
@@ -451,6 +454,7 @@ let typeFilter = 'all';
 let editingMemory = null;
 let deletingMemory = null;
 let mem0Loaded = false;
+let mem0UserId = 'himanshu-kumar';
 
 function toast(msg, isError = false) {
   const t = document.getElementById('toast');
@@ -475,8 +479,9 @@ function switchTab(tab, btn) {
   document.getElementById('mem0Tab').style.display = tab === 'mem0' ? 'block' : 'none';
   document.getElementById('typeFilters').style.display = tab === 'claude' ? 'flex' : 'none';
   document.getElementById('mem0Stat').style.display = tab === 'mem0' ? 'flex' : 'none';
+  document.getElementById('mem0UserSelect').style.display = tab === 'mem0' ? 'inline-block' : 'none';
 
-  if (tab === 'mem0' && !mem0Loaded) loadMem0();
+  if (tab === 'mem0' && !mem0Loaded) { loadMem0Entities(); loadMem0(); }
 }
 
 // --- Claude Memories ---
@@ -686,12 +691,40 @@ async function confirmDelete() {
 }
 
 // --- Mem0 Cloud Memories ---
+async function loadMem0Entities() {
+  const select = document.getElementById('mem0UserSelect');
+  try {
+    const resp = await fetch(API + '/api/mem0/entities');
+    const data = await resp.json();
+    const entities = data.results || [];
+    if (entities.length > 0) {
+      select.innerHTML = entities.map(e =>
+        `<option value="${esc(e.name)}" ${e.name === mem0UserId ? 'selected' : ''}>${esc(e.name)} (${e.type || 'user'})</option>`
+      ).join('');
+      // If current mem0UserId not in list, use first entity
+      if (!entities.find(e => e.name === mem0UserId)) {
+        mem0UserId = entities[0].name;
+        select.value = mem0UserId;
+      }
+    }
+  } catch (e) {
+    select.innerHTML = `<option value="${esc(mem0UserId)}">${esc(mem0UserId)}</option>`;
+  }
+}
+
+function onMem0UserChange() {
+  const select = document.getElementById('mem0UserSelect');
+  mem0UserId = select.value;
+  mem0Loaded = false;
+  loadMem0();
+}
+
 async function loadMem0() {
   const container = document.getElementById('mem0Tab');
   container.innerHTML = '<div class="loading-msg">Loading Mem0 memories...</div>';
 
   try {
-    const resp = await fetch(API + '/api/mem0');
+    const resp = await fetch(API + '/api/mem0?user_id=' + encodeURIComponent(mem0UserId));
     const data = await resp.json();
 
     if (data.error) {
@@ -704,7 +737,7 @@ async function loadMem0() {
     mem0Loaded = true;
     document.getElementById('totalMem0').textContent = mem0Data.length;
     renderMem0();
-    toast('Loaded ' + mem0Data.length + ' Mem0 memories');
+    toast('Loaded ' + mem0Data.length + ' Mem0 memories for ' + mem0UserId);
   } catch (e) {
     container.innerHTML = `<div class="loading-msg">Failed to connect to Mem0 API: ${esc(e.message)}</div>`;
   }

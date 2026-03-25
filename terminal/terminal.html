@@ -172,6 +172,33 @@ body {
         cursorStyle: 'block',
         scrollback: 10000,
         allowProposedApi: true,
+        rightClickSelectsWord: true,
+        customKeyEventHandler: (e) => {
+          // Ctrl+C with selection → copy to clipboard instead of SIGINT
+          if (e.type === 'keydown' && e.key === 'c' && e.ctrlKey && !e.shiftKey && !e.altKey) {
+            if (xterm.hasSelection()) {
+              navigator.clipboard.writeText(xterm.getSelection());
+              xterm.clearSelection();
+              return false; // prevent xterm from sending SIGINT
+            }
+          }
+          // Ctrl+Shift+C → always copy selection
+          if (e.type === 'keydown' && e.key === 'C' && e.ctrlKey && e.shiftKey) {
+            if (xterm.hasSelection()) {
+              navigator.clipboard.writeText(xterm.getSelection());
+              xterm.clearSelection();
+              return false;
+            }
+          }
+          // Ctrl+Shift+V → paste from clipboard
+          if (e.type === 'keydown' && e.key === 'V' && e.ctrlKey && e.shiftKey) {
+            navigator.clipboard.readText().then(text => {
+              if (text) xterm.paste(text);
+            });
+            return false;
+          }
+          return true; // let xterm handle everything else
+        },
       });
 
       const fitAddon = new window.FitAddon.FitAddon();
@@ -190,6 +217,61 @@ body {
 
       // Open xterm in container
       xterm.open(container);
+
+      // Right-click context menu for copy/paste
+      container.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        // Remove any existing context menu
+        const old = document.getElementById('term-context-menu');
+        if (old) old.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'term-context-menu';
+        menu.style.cssText = `
+          position: fixed; top: ${e.clientY}px; left: ${e.clientX}px; z-index: 10000;
+          background: #1e2030; border: 1px solid #3a3f5c; border-radius: 6px;
+          padding: 4px 0; min-width: 150px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+          font-family: system-ui, sans-serif; font-size: 13px; color: #e1e4ed;
+        `;
+        const itemStyle = `padding: 6px 16px; cursor: pointer; display: flex; justify-content: space-between;`;
+        const hasSel = xterm.hasSelection();
+        menu.innerHTML = `
+          <div class="ctx-item" style="${itemStyle} ${hasSel ? '' : 'opacity:0.4; pointer-events:none;'}">
+            <span>Copy</span><span style="color:#636e72; font-size:11px;">Ctrl+C</span>
+          </div>
+          <div class="ctx-item" style="${itemStyle}">
+            <span>Paste</span><span style="color:#636e72; font-size:11px;">Ctrl+Shift+V</span>
+          </div>
+        `;
+        document.body.appendChild(menu);
+
+        const items = menu.querySelectorAll('.ctx-item');
+        items.forEach(item => {
+          item.addEventListener('mouseenter', () => item.style.background = '#2a2e45');
+          item.addEventListener('mouseleave', () => item.style.background = 'transparent');
+        });
+
+        // Copy action
+        if (hasSel) {
+          items[0].addEventListener('click', () => {
+            navigator.clipboard.writeText(xterm.getSelection());
+            xterm.clearSelection();
+            menu.remove();
+          });
+        }
+        // Paste action
+        items[1].addEventListener('click', () => {
+          navigator.clipboard.readText().then(text => {
+            if (text) xterm.paste(text);
+          });
+          menu.remove();
+        });
+
+        // Close menu on click outside
+        const closeMenu = () => { menu.remove(); document.removeEventListener('click', closeMenu); };
+        setTimeout(() => document.addEventListener('click', closeMenu), 0);
+      });
+
       // Fit after container is rendered and visible
       setTimeout(() => {
         fitAddon.fit();
