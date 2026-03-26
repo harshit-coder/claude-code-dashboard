@@ -156,7 +156,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // API: Read .claude.json
+  // API: Read .claude.json (merged with settings.json MCP servers)
   if (req.url === '/api/config' && req.method === 'GET') {
     fs.readFile(CLAUDE_JSON_PATH, 'utf8', (err, data) => {
       if (err) {
@@ -164,8 +164,30 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'Cannot read: ' + err.message, path: CLAUDE_JSON_PATH }));
         return;
       }
+      const claudeData = JSON.parse(data);
+      // Merge MCP servers from settings.json so server page shows all servers
+      try {
+        const settingsRaw = fs.readFileSync(SETTINGS_JSON_PATH, 'utf8');
+        const settingsData = JSON.parse(settingsRaw);
+        if (settingsData.mcpServers) {
+          if (!claudeData.mcpServers) claudeData.mcpServers = {};
+          for (const [k, v] of Object.entries(settingsData.mcpServers)) {
+            if (!claudeData.mcpServers[k] && !(claudeData.disabledMcpServers && claudeData.disabledMcpServers[k])) {
+              claudeData.mcpServers[k] = v;
+            }
+          }
+        }
+        if (settingsData.disabledMcpServers) {
+          if (!claudeData.disabledMcpServers) claudeData.disabledMcpServers = {};
+          for (const [k, v] of Object.entries(settingsData.disabledMcpServers)) {
+            if (!claudeData.disabledMcpServers[k] && !(claudeData.mcpServers && claudeData.mcpServers[k])) {
+              claudeData.disabledMcpServers[k] = v;
+            }
+          }
+        }
+      } catch (_) {}
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ data: JSON.parse(data), path: CLAUDE_JSON_PATH }));
+      res.end(JSON.stringify({ data: claudeData, path: CLAUDE_JSON_PATH }));
     });
     return;
   }
@@ -1260,8 +1282,11 @@ const server = http.createServer((req, res) => {
         const settings = JSON.parse(raw);
         if (!settings.mcpServers) settings.mcpServers = {};
 
-        // Check if already exists
-        if (settings.mcpServers[name] || (settings.disabledMcpServers && settings.disabledMcpServers[name])) {
+        // Check across both config files
+        let claudeData = {};
+        try { claudeData = JSON.parse(fs.readFileSync(CLAUDE_JSON_PATH, 'utf8')); } catch (_) {}
+        if (settings.mcpServers[name] || (settings.disabledMcpServers && settings.disabledMcpServers[name]) ||
+            (claudeData.mcpServers && claudeData.mcpServers[name]) || (claudeData.disabledMcpServers && claudeData.disabledMcpServers[name])) {
           res.writeHead(409, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: `Server "${name}" already exists` }));
           return;
@@ -1282,7 +1307,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Uninstall MCP server — remove from settings.json
+  // Uninstall MCP server — remove from both config files
   // POST /api/marketplace/uninstall  { name }
   if (req.url === '/api/marketplace/uninstall' && req.method === 'POST') {
     let body = '';
@@ -1290,15 +1315,34 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const { name } = JSON.parse(body);
+
+        // Remove from settings.json
+        let found = false;
         const raw = fs.readFileSync(SETTINGS_JSON_PATH, 'utf8');
         const settings = JSON.parse(raw);
-
-        let found = false;
         if (settings.mcpServers && settings.mcpServers[name]) {
           delete settings.mcpServers[name]; found = true;
         }
         if (settings.disabledMcpServers && settings.disabledMcpServers[name]) {
           delete settings.disabledMcpServers[name]; found = true;
+        }
+        if (found) {
+          try { fs.copyFileSync(SETTINGS_JSON_PATH, SETTINGS_JSON_PATH + '.backup'); } catch (_) {}
+          fs.writeFileSync(SETTINGS_JSON_PATH, JSON.stringify(settings, null, 2), 'utf8');
+        }
+
+        // Also remove from .claude.json
+        let claudeData = {};
+        try { claudeData = JSON.parse(fs.readFileSync(CLAUDE_JSON_PATH, 'utf8')); } catch (_) {}
+        if (claudeData.mcpServers && claudeData.mcpServers[name]) {
+          delete claudeData.mcpServers[name]; found = true;
+        }
+        if (claudeData.disabledMcpServers && claudeData.disabledMcpServers[name]) {
+          delete claudeData.disabledMcpServers[name]; found = true;
+        }
+        if (found) {
+          try { fs.copyFileSync(CLAUDE_JSON_PATH, CLAUDE_JSON_PATH + '.backup'); } catch (_) {}
+          fs.writeFileSync(CLAUDE_JSON_PATH, JSON.stringify(claudeData, null, 2), 'utf8');
         }
 
         if (!found) {
@@ -1306,9 +1350,6 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify({ error: `Server "${name}" not found` }));
           return;
         }
-
-        try { fs.copyFileSync(SETTINGS_JSON_PATH, SETTINGS_JSON_PATH + '.backup'); } catch (_) {}
-        fs.writeFileSync(SETTINGS_JSON_PATH, JSON.stringify(settings, null, 2), 'utf8');
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
