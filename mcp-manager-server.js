@@ -596,22 +596,46 @@ const server = http.createServer((req, res) => {
       });
 
       // Also scan skills dir for orphan files (not in settings.json)
+      // Supports both top-level .md files AND subdirectory-based skills (subdir/SKILL.md)
       let orphans = [];
       try {
-        const files = fs.readdirSync(SKILLS_DIR).filter(f => f.endsWith('.md'));
+        const entries = fs.readdirSync(SKILLS_DIR, { withFileTypes: true });
         const registeredPaths = skills.map(s => path.resolve(s.path.replace(/\//g, path.sep)));
-        for (const f of files) {
-          const fp = path.resolve(path.join(SKILLS_DIR, f));
-          if (!registeredPaths.includes(fp)) {
-            let content = '';
-            try { content = fs.readFileSync(fp, 'utf8'); } catch (_) {}
-            orphans.push({
-              name: f.replace('.md', ''),
-              description: '(not registered in settings.json)',
-              path: fp.replace(/\\/g, '/'),
-              content,
-              orphan: true
-            });
+
+        // Top-level .md files
+        for (const entry of entries) {
+          if (entry.isFile() && entry.name.endsWith('.md')) {
+            const fp = path.resolve(path.join(SKILLS_DIR, entry.name));
+            if (!registeredPaths.includes(fp)) {
+              let content = '';
+              try { content = fs.readFileSync(fp, 'utf8'); } catch (_) {}
+              orphans.push({
+                name: entry.name.replace('.md', ''),
+                description: '(not registered in settings.json)',
+                path: fp.replace(/\\/g, '/'),
+                content,
+                orphan: true
+              });
+            }
+          }
+        }
+
+        // Subdirectory-based skills (e.g. skills/my-skill/SKILL.md)
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            const skillFile = path.join(SKILLS_DIR, entry.name, 'SKILL.md');
+            const fp = path.resolve(skillFile);
+            if (fs.existsSync(fp) && !registeredPaths.includes(fp)) {
+              let content = '';
+              try { content = fs.readFileSync(fp, 'utf8'); } catch (_) {}
+              orphans.push({
+                name: entry.name,
+                description: '(not registered in settings.json)',
+                path: fp.replace(/\\/g, '/'),
+                content,
+                orphan: true
+              });
+            }
           }
         }
       } catch (_) {}
@@ -633,10 +657,14 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       try {
         const { name, description, content, isNew } = JSON.parse(body);
-        const skillPath = path.join(SKILLS_DIR, name + '.md');
 
         // Ensure skills dir exists
         if (!fs.existsSync(SKILLS_DIR)) fs.mkdirSync(SKILLS_DIR, { recursive: true });
+
+        // Determine skill file path: prefer existing subdir/SKILL.md, then flat .md
+        const subdirSkillPath = path.join(SKILLS_DIR, name, 'SKILL.md');
+        const flatSkillPath = path.join(SKILLS_DIR, name + '.md');
+        const skillPath = fs.existsSync(subdirSkillPath) ? subdirSkillPath : flatSkillPath;
 
         // Write skill file
         fs.writeFileSync(skillPath, content, 'utf8');
@@ -691,9 +719,16 @@ const server = http.createServer((req, res) => {
         try { fs.copyFileSync(SETTINGS_JSON_PATH, SETTINGS_JSON_PATH + '.backup'); } catch (_) {}
         fs.writeFileSync(SETTINGS_JSON_PATH, JSON.stringify(settings, null, 2), 'utf8');
 
-        // Delete skill file
-        const skillPath = path.join(SKILLS_DIR, name + '.md');
-        if (fs.existsSync(skillPath)) fs.unlinkSync(skillPath);
+        // Delete skill file (check both flat .md and subdir/SKILL.md)
+        const flatPath = path.join(SKILLS_DIR, name + '.md');
+        const subdirPath = path.join(SKILLS_DIR, name, 'SKILL.md');
+        if (fs.existsSync(flatPath)) {
+          fs.unlinkSync(flatPath);
+        } else if (fs.existsSync(subdirPath)) {
+          fs.unlinkSync(subdirPath);
+          // Remove empty subdirectory
+          try { fs.rmdirSync(path.join(SKILLS_DIR, name)); } catch (_) {}
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
