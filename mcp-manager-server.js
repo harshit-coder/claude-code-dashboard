@@ -621,23 +621,32 @@ const server = http.createServer((req, res) => {
         }
 
         // Subdirectory-based skills (e.g. skills/my-skill/SKILL.md)
-        for (const entry of entries) {
-          if (entry.isDirectory()) {
-            const skillFile = path.join(SKILLS_DIR, entry.name, 'SKILL.md');
-            const fp = path.resolve(skillFile);
-            if (fs.existsSync(fp) && !registeredPaths.includes(fp)) {
-              let content = '';
-              try { content = fs.readFileSync(fp, 'utf8'); } catch (_) {}
-              orphans.push({
-                name: entry.name,
-                description: '(not registered in settings.json)',
-                path: fp.replace(/\\/g, '/'),
-                content,
-                orphan: true
-              });
+        // Also handles nested dirs like skills/pm-go-to-market/beachhead-segment/SKILL.md
+        function scanForSkills(dir, prefix) {
+          let dirEntries;
+          try { dirEntries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_) { return; }
+          for (const entry of dirEntries) {
+            if (entry.isDirectory()) {
+              const skillFile = path.join(dir, entry.name, 'SKILL.md');
+              const fp = path.resolve(skillFile);
+              if (fs.existsSync(fp) && !registeredPaths.includes(fp)) {
+                const skillName = prefix ? `${prefix}:${entry.name}` : entry.name;
+                let content = '';
+                try { content = fs.readFileSync(fp, 'utf8'); } catch (_) {}
+                orphans.push({
+                  name: skillName,
+                  description: '(not registered in settings.json)',
+                  path: fp.replace(/\\/g, '/'),
+                  content,
+                  orphan: true
+                });
+              }
+              // Recurse into subdirectories for nested skills
+              scanForSkills(path.join(dir, entry.name), prefix ? `${prefix}:${entry.name}` : entry.name);
             }
           }
         }
+        scanForSkills(SKILLS_DIR, '');
       } catch (_) {}
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
