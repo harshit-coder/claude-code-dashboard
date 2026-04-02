@@ -712,7 +712,7 @@ async function saveFile() {
       const result = await resp.json();
       if (result.success) {
         markSaved();
-        toast('Saved successfully! (backup created)');
+        toast(result.settingsSynced ? 'Saved & synced to both config files!' : 'Saved successfully! (backup created)');
         return;
       }
       toast('Save failed: ' + result.error, true);

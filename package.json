@@ -1,6 +1,6 @@
 {
   "name": "claude-code-dashboard",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "The most comprehensive desktop dashboard for managing Claude Code — servers, tools, skills, hooks, permissions, usage analytics, embedded terminal, and more.",
   "main": "electron/main.js",
   "bin": {

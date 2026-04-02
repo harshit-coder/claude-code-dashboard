@@ -192,7 +192,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // API: Write .claude.json
+  // API: Write .claude.json AND sync MCP servers to settings.json
   if (req.url === '/api/config' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -212,8 +212,52 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ error: 'Write failed: ' + err.message }));
             return;
           }
+
+          // Sync MCP servers to settings.json
+          try {
+            const settingsRaw = fs.readFileSync(SETTINGS_JSON_PATH, 'utf8');
+            const settings = JSON.parse(settingsRaw);
+            try { fs.copyFileSync(SETTINGS_JSON_PATH, SETTINGS_JSON_PATH + '.backup'); } catch (_) {}
+
+            // Sync: settings.json mcpServers and disabledMcpServers should match .claude.json
+            const newEnabled = parsed.mcpServers || {};
+            const newDisabled = parsed.disabledMcpServers || {};
+            const oldEnabled = settings.mcpServers || {};
+            const oldDisabled = settings.disabledMcpServers || {};
+
+            // Collect all known server names across both files
+            const allNames = new Set([
+              ...Object.keys(oldEnabled), ...Object.keys(oldDisabled),
+              ...Object.keys(newEnabled), ...Object.keys(newDisabled)
+            ]);
+
+            const syncedEnabled = {};
+            const syncedDisabled = {};
+
+            for (const name of allNames) {
+              // .claude.json is the source of truth for enabled/disabled state
+              if (newEnabled[name]) {
+                // Server is enabled in .claude.json — use its config, enable in settings too
+                syncedEnabled[name] = newEnabled[name];
+              } else if (newDisabled[name]) {
+                // Server is disabled in .claude.json — use its config, disable in settings too
+                syncedDisabled[name] = newDisabled[name];
+              } else if (oldEnabled[name] || oldDisabled[name]) {
+                // Server only exists in settings.json (not in .claude.json) — keep it in disabled
+                syncedDisabled[name] = oldEnabled[name] || oldDisabled[name];
+              }
+            }
+
+            settings.mcpServers = syncedEnabled;
+            settings.disabledMcpServers = syncedDisabled;
+            fs.writeFileSync(SETTINGS_JSON_PATH, JSON.stringify(settings, null, 2), 'utf8');
+          } catch (syncErr) {
+            // Log but don't fail the main save
+            console.error('Settings sync warning:', syncErr.message);
+          }
+
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, path: CLAUDE_JSON_PATH }));
+          res.end(JSON.stringify({ success: true, path: CLAUDE_JSON_PATH, settingsSynced: true }));
         });
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1336,10 +1380,20 @@ const server = http.createServer((req, res) => {
           return;
         }
 
-        // Backup and write
+        // Backup and write to settings.json
         try { fs.copyFileSync(SETTINGS_JSON_PATH, SETTINGS_JSON_PATH + '.backup'); } catch (_) {}
         settings.mcpServers[name] = config;
         fs.writeFileSync(SETTINGS_JSON_PATH, JSON.stringify(settings, null, 2), 'utf8');
+
+        // Also write to .claude.json to keep in sync
+        try {
+          try { fs.copyFileSync(CLAUDE_JSON_PATH, CLAUDE_JSON_PATH + '.backup'); } catch (_) {}
+          if (!claudeData.mcpServers) claudeData.mcpServers = {};
+          claudeData.mcpServers[name] = config;
+          fs.writeFileSync(CLAUDE_JSON_PATH, JSON.stringify(claudeData, null, 2), 'utf8');
+        } catch (syncErr) {
+          console.error('claude.json sync warning:', syncErr.message);
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, name }));
