@@ -12,3 +12,7 @@ build/
 *.dmg
 *.AppImage
 *.snap
+
+# Tauri build output
+tauri-port/src-tauri/target/
+tauri-port/node_modules/
