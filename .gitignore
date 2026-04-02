@@ -16,3 +16,4 @@ build/
 # Tauri build output
 tauri-port/src-tauri/target/
 tauri-port/node_modules/
+tauri-port/app/

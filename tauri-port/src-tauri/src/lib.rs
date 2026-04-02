@@ -1,12 +1,40 @@
-use std::process::{Child, Command};
+use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
-struct NodeServer(Mutex<Option<Child>>);
+struct NodeServer(Mutex<Option<std::process::Child>>);
 
-#[tauri::command]
-fn get_server_port() -> u16 {
-    3456
+fn find_server_script(app: &tauri::AppHandle) -> Option<PathBuf> {
+    // Production: bundled in resources/app/mcp-manager-server.js
+    if let Ok(res_dir) = app.path().resource_dir() {
+        let prod = res_dir.join("app").join("mcp-manager-server.js");
+        if prod.exists() {
+            println!("[Tauri] Found server at: {}", prod.display());
+            return Some(prod);
+        }
+        // Fallback: flat resources dir (in case of older build)
+        let flat = res_dir.join("mcp-manager-server.js");
+        if flat.exists() {
+            println!("[Tauri] Found server (flat) at: {}", flat.display());
+            return Some(flat);
+        }
+    }
+
+    // Dev mode: look relative to the workspace root
+    let dev_paths = [
+        PathBuf::from("../mcp-manager-server.js"),         // from tauri-port/src-tauri/
+        PathBuf::from("../../mcp-manager-server.js"),
+        PathBuf::from("src/mcp-manager-server.js"),
+    ];
+    for p in &dev_paths {
+        if p.exists() {
+            println!("[Tauri] Dev mode server at: {}", p.display());
+            return Some(p.clone());
+        }
+    }
+
+    None
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -18,38 +46,36 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
-            // Find the mcp-manager-server.js — it lives in the src directory (dev)
-            // or in the resource directory (production)
-            let server_script = {
-                // In dev mode: relative to the app's resource directory
-                let resource_path = app_handle
-                    .path()
-                    .resource_dir()
-                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            match find_server_script(&app_handle) {
+                Some(script_path) => {
+                    // Set cwd to the script's directory so __dirname works correctly
+                    let script_dir = script_path
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| PathBuf::from("."));
 
-                let dev_path = std::path::PathBuf::from("src/mcp-manager-server.js");
-                let prod_path = resource_path.join("mcp-manager-server.js");
+                    println!("[Tauri] Starting Node server...");
+                    println!("[Tauri]   script : {}", script_path.display());
+                    println!("[Tauri]   cwd    : {}", script_dir.display());
 
-                if dev_path.exists() {
-                    dev_path
-                } else {
-                    prod_path
+                    match Command::new("node")
+                        .arg(&script_path)
+                        .current_dir(&script_dir)   // __dirname = script_dir
+                        .spawn()
+                    {
+                        Ok(child) => {
+                            println!("[Tauri] Node server started (PID: {})", child.id());
+                            let state: State<NodeServer> = app_handle.state();
+                            *state.0.lock().unwrap() = Some(child);
+                        }
+                        Err(e) => {
+                            eprintln!("[Tauri] ERROR: Failed to start Node.js: {}", e);
+                            eprintln!("[Tauri] Make sure Node.js is installed and in PATH.");
+                        }
+                    }
                 }
-            };
-
-            // Spawn Node.js server
-            let child = Command::new("node")
-                .arg(&server_script)
-                .spawn();
-
-            match child {
-                Ok(c) => {
-                    println!("[Tauri] Node server started (PID: {})", c.id());
-                    let state: State<NodeServer> = app_handle.state();
-                    *state.0.lock().unwrap() = Some(c);
-                }
-                Err(e) => {
-                    eprintln!("[Tauri] Failed to start Node server: {}", e);
+                None => {
+                    eprintln!("[Tauri] ERROR: mcp-manager-server.js not found in any expected location.");
                 }
             }
 
@@ -57,10 +83,9 @@ pub fn run() {
         })
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                // Node process will be cleaned up by OS when app exits
+                // OS cleans up child process when parent exits
             }
         })
-        .invoke_handler(tauri::generate_handler![get_server_port])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
