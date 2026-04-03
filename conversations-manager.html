@@ -560,6 +560,16 @@ body {
   color: var(--text);
 }
 
+.session-actions .btn-export-item {
+  color: var(--green);
+  border-color: var(--green);
+}
+
+.session-actions .btn-export-item:hover {
+  background: var(--green);
+  color: #fff;
+}
+
 .session-actions .btn-delete {
   color: var(--red);
   border-color: var(--red);
@@ -669,6 +679,7 @@ function renderSessionList() {
       </div>
       <div class="session-actions">
         <button class="btn-resume" data-sid="${esc(s.sessionId)}" data-project="${esc(s.project)}" title="Copy resume command">Resume</button>
+        <button class="btn-export-item" data-project="${esc(s.projectKey || s.project)}" data-sid="${esc(s.sessionId)}" title="Export as Markdown">Export</button>
         <button class="btn-delete" data-project="${esc(s.projectKey || s.project)}" data-sid="${esc(s.sessionId)}" title="Delete session">Delete</button>
       </div>
     </div>`;
@@ -694,6 +705,18 @@ function renderSessionList() {
         runInTerminal(cmd, proj || undefined);
       } else {
         navigator.clipboard.writeText(cmd).then(() => showToast('Copied! Paste in terminal to resume this chat.'));
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-export-item').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const proj = btn.dataset.project || '';
+      const sid = btn.dataset.sid || '';
+      if (proj && sid) {
+        window.location = '/api/conversations/export?project=' + encodeURIComponent(proj) + '&id=' + encodeURIComponent(sid);
+        showToast('Exporting conversation as Markdown...');
       }
     });
   });

@@ -633,7 +633,8 @@ const server = http.createServer((req, res) => {
       const enriched = skills.map(s => {
         let content = '';
         try {
-          const normalizedPath = s.path.replace(/\//g, path.sep);
+          // Normalize path: handle forward slashes, double-escaped backslashes, and OS separators
+          const normalizedPath = s.path.replace(/\\\\/g, '/').replace(/\\/g, '/').replace(/\//g, path.sep);
           content = fs.readFileSync(normalizedPath, 'utf8');
         } catch (_) {}
         return { ...s, content };
@@ -730,7 +731,7 @@ const server = http.createServer((req, res) => {
         const skillEntry = {
           name,
           description: description || '',
-          path: skillPath.replace(/\\/g, '\\\\')
+          path: skillPath.replace(/\\/g, '/')
         };
 
         const idx = settings.skills.findIndex(s => s.name === name);
@@ -782,6 +783,32 @@ const server = http.createServer((req, res) => {
           // Remove empty subdirectory
           try { fs.rmdirSync(path.join(SKILLS_DIR, name)); } catch (_) {}
         }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // API: Unregister a skill (remove from settings.json but keep the .md file)
+  // POST /api/skills/unregister  { name }
+  if (req.url === '/api/skills/unregister' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { name } = JSON.parse(body);
+        const raw = fs.readFileSync(SETTINGS_JSON_PATH, 'utf8');
+        const settings = JSON.parse(raw);
+        if (settings.skills) {
+          settings.skills = settings.skills.filter(s => s.name !== name);
+        }
+        try { fs.copyFileSync(SETTINGS_JSON_PATH, SETTINGS_JSON_PATH + '.backup'); } catch (_) {}
+        fs.writeFileSync(SETTINGS_JSON_PATH, JSON.stringify(settings, null, 2), 'utf8');
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true }));
@@ -2438,38 +2465,136 @@ const server = http.createServer((req, res) => {
       const raw = fs.readFileSync(fp, 'utf8');
       const lines = raw.split('\n').filter(l => l.trim());
       const project = projectKey.replace(/^([A-Za-z])--/, '$1:/').replace(/-/g, '/');
-      let md = `# Conversation: ${sessionId}\n\n`;
-      md += `**Project:** ${project}  \n`;
-      md += `**Date:** ${new Date(fs.statSync(fp).mtime).toLocaleString()}  \n\n---\n\n`;
+      const fileStat = fs.statSync(fp);
+      const fmtNum = (n) => n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
 
+      // Parse all messages first for stats
+      const parsed = [];
       for (const line of lines) {
-        try {
-          const obj = JSON.parse(line);
-          if (obj.type === 'user' && obj.message) {
-            md += `## User\n\n`;
-            if (typeof obj.message.content === 'string') {
-              md += obj.message.content + '\n\n';
-            } else if (Array.isArray(obj.message.content)) {
-              for (const c of obj.message.content) {
-                if (c.type === 'text') md += c.text + '\n\n';
-                else if (c.type === 'tool_result') md += `> **Tool Result** (${c.tool_use_id}):\n> ${(c.content || '').slice(0, 500)}\n\n`;
+        try { parsed.push(JSON.parse(line)); } catch (_) {}
+      }
+
+      // Compute stats
+      let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheCreate = 0;
+      let userCount = 0, assistantCount = 0;
+      const fileMap = {};
+
+      for (const obj of parsed) {
+        const role = obj.type || (obj.message && obj.message.role) || 'assistant';
+        if (role === 'user') userCount++;
+        else assistantCount++;
+        const usage = obj.message ? obj.message.usage : null;
+        if (usage) {
+          totalInput += usage.input_tokens || 0;
+          totalOutput += usage.output_tokens || 0;
+          totalCacheRead += usage.cache_read_input_tokens || 0;
+          totalCacheCreate += usage.cache_creation_input_tokens || 0;
+        }
+        // Track files changed
+        const content = obj.message ? obj.message.content : null;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (block.type === 'tool_use' && ['Edit', 'Write', 'Read'].includes(block.name)) {
+              const fp2 = block.input && block.input.file_path;
+              if (fp2) {
+                if (!fileMap[fp2]) fileMap[fp2] = new Set();
+                fileMap[fp2].add(block.name);
               }
             }
-          } else if (obj.type === 'assistant' && obj.message) {
-            md += `## Claude\n\n`;
-            if (Array.isArray(obj.message.content)) {
-              for (const c of obj.message.content) {
-                if (c.type === 'text') md += c.text + '\n\n';
-                else if (c.type === 'tool_use') md += `### Tool: ${c.name}\n\n\`\`\`json\n${JSON.stringify(c.input, null, 2).slice(0, 1000)}\n\`\`\`\n\n`;
-                else if (c.type === 'thinking') md += `<details><summary>Thinking</summary>\n\n${(c.thinking || '').slice(0, 500)}\n\n</details>\n\n`;
-              }
-            }
-            if (obj.message.usage) {
-              md += `*Tokens: in=${obj.message.usage.input_tokens || 0}, out=${obj.message.usage.output_tokens || 0}*\n\n`;
-            }
-            md += '---\n\n';
           }
-        } catch (_) {}
+        }
+      }
+
+      const costEst = (totalInput / 1e6) * 3 + (totalOutput / 1e6) * 15;
+
+      // Build markdown
+      let md = '';
+      md += `# Conversation Export\n\n`;
+      md += `> **Session:** \`${sessionId}\`  \n`;
+      md += `> **Project:** \`${project}\`  \n`;
+      md += `> **Date:** ${new Date(fileStat.mtime).toLocaleString()}  \n`;
+      md += `> **Exported:** ${new Date().toLocaleString()}\n\n`;
+
+      // Stats table
+      md += `## Session Stats\n\n`;
+      md += `| Metric | Value |\n|--------|-------|\n`;
+      md += `| Messages | ${userCount + assistantCount} (${userCount} user / ${assistantCount} assistant) |\n`;
+      md += `| Input Tokens | ${fmtNum(totalInput)} |\n`;
+      md += `| Output Tokens | ${fmtNum(totalOutput)} |\n`;
+      md += `| Cache Read | ${fmtNum(totalCacheRead)} |\n`;
+      md += `| Cache Create | ${fmtNum(totalCacheCreate)} |\n`;
+      md += `| Est. Cost | $${costEst.toFixed(4)} |\n\n`;
+
+      // Files changed
+      const fileEntries = Object.entries(fileMap);
+      if (fileEntries.length) {
+        md += `## Files Changed\n\n`;
+        for (const [filePath, ops] of fileEntries) {
+          const opLabel = ops.has('Edit') ? 'edited' : ops.has('Write') ? 'created' : 'read';
+          md += `- \`${filePath}\` — *${opLabel}*\n`;
+        }
+        md += '\n';
+      }
+
+      md += `---\n\n## Conversation\n\n`;
+
+      // Messages
+      let msgNum = 0;
+      for (const obj of parsed) {
+        const role = obj.type || (obj.message && obj.message.role) || 'assistant';
+        const ts = obj.timestamp ? new Date(obj.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+
+        if (role === 'user') {
+          msgNum++;
+          md += `### ${msgNum}. User`;
+          if (ts) md += ` — *${ts}*`;
+          md += `\n\n`;
+
+          const content = obj.message ? obj.message.content : '';
+          if (typeof content === 'string') {
+            md += content + '\n\n';
+          } else if (Array.isArray(content)) {
+            for (const c of content) {
+              if (c.type === 'text') {
+                md += c.text + '\n\n';
+              } else if (c.type === 'tool_result') {
+                const body = typeof c.content === 'string' ? c.content :
+                  Array.isArray(c.content) ? c.content.map(x => x.text || JSON.stringify(x)).join('\n') :
+                  JSON.stringify(c.content, null, 2);
+                md += `<details><summary>Tool Result (${(c.tool_use_id || '').substring(0, 12)}...)</summary>\n\n\`\`\`\n${body}\n\`\`\`\n\n</details>\n\n`;
+              }
+            }
+          }
+        } else {
+          msgNum++;
+          md += `### ${msgNum}. Claude`;
+          if (ts) md += ` — *${ts}*`;
+          md += `\n\n`;
+
+          const content = obj.message ? obj.message.content : '';
+          if (Array.isArray(content)) {
+            for (const c of content) {
+              if (c.type === 'text' && c.text) {
+                md += c.text + '\n\n';
+              } else if (c.type === 'tool_use') {
+                md += `<details><summary>Tool: <code>${c.name}</code></summary>\n\n\`\`\`json\n${JSON.stringify(c.input, null, 2)}\n\`\`\`\n\n</details>\n\n`;
+              } else if (c.type === 'thinking' && c.thinking) {
+                md += `<details><summary>Thinking</summary>\n\n${c.thinking}\n\n</details>\n\n`;
+              }
+            }
+          } else if (typeof content === 'string') {
+            md += content + '\n\n';
+          }
+
+          const usage = obj.message ? obj.message.usage : null;
+          if (usage) {
+            const parts = [`In: ${fmtNum(usage.input_tokens || 0)}`, `Out: ${fmtNum(usage.output_tokens || 0)}`];
+            if (usage.cache_read_input_tokens) parts.push(`Cache: ${fmtNum(usage.cache_read_input_tokens)}`);
+            if (usage.cache_creation_input_tokens) parts.push(`CacheW: ${fmtNum(usage.cache_creation_input_tokens)}`);
+            md += `> *Tokens: ${parts.join(' | ')}*\n\n`;
+          }
+        }
+        md += '---\n\n';
       }
 
       const filename = `conversation-${sessionId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.md`;

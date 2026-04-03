@@ -87,6 +87,8 @@
   .btn-danger { background: var(--red-dim); border-color: var(--red); color: var(--red); }
   .btn-danger:hover { background: var(--red); color: #fff; }
   .btn-green { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn-orange { background: rgba(243,156,18,0.15); border-color: var(--orange); color: var(--orange); }
+  .btn-orange:hover { background: var(--orange); color: #fff; }
 
   .stats {
     font-size: 13px;
@@ -259,6 +261,40 @@
   .delete-modal .modal h2 { color: var(--red); }
   .delete-modal .modal-actions { justify-content: center; }
 
+  /* Search bar */
+  .search-bar {
+    padding: 16px 32px 0;
+  }
+  .search-input {
+    width: 100%;
+    max-width: 480px;
+    padding: 10px 14px 10px 38px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-dim); }
+  .search-wrap {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    max-width: 480px;
+  }
+  .search-wrap .search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    font-size: 15px;
+    pointer-events: none;
+  }
+
   /* Empty state */
   .empty-state {
     text-align: center;
@@ -300,6 +336,13 @@
 <script>renderNav('skills')</script>
 
 <div class="stats" id="stats"></div>
+
+<div class="search-bar">
+  <div class="search-wrap">
+    <span class="search-icon">&#128269;</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Search skills by name or description..." oninput="filterSkills()">
+  </div>
+</div>
 
 <div class="content" id="content">
   <div class="empty-state">
@@ -370,12 +413,21 @@ async function init() {
   }
 }
 
+function filterSkills() {
+  render();
+}
+
 function render() {
   const container = document.getElementById('content');
   const statsEl = document.getElementById('stats');
   const all = [...skills, ...orphans];
+  const query = (document.getElementById('searchInput').value || '').toLowerCase().trim();
 
-  statsEl.textContent = `${skills.length} registered skill${skills.length !== 1 ? 's' : ''}${orphans.length > 0 ? ` + ${orphans.length} unregistered file${orphans.length !== 1 ? 's' : ''}` : ''}`;
+  const filtered = query
+    ? all.filter(s => s.name.toLowerCase().includes(query))
+    : all;
+
+  statsEl.textContent = `${skills.length} registered skill${skills.length !== 1 ? 's' : ''}${orphans.length > 0 ? ` + ${orphans.length} unregistered file${orphans.length !== 1 ? 's' : ''}` : ''}${query ? ` — showing ${filtered.length} match${filtered.length !== 1 ? 'es' : ''}` : ''}`;
 
   if (all.length === 0) {
     container.innerHTML = `
@@ -387,9 +439,18 @@ function render() {
     return;
   }
 
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">&#128269;</div>
+        <div>No skills matching "${esc(query)}"</div>
+      </div>`;
+    return;
+  }
+
   let html = '<div class="skills-grid">';
 
-  for (const skill of all) {
+  for (const skill of filtered) {
     const isOrphan = skill.orphan;
     const preview = (skill.content || '').split('\n').slice(0, 5).join('\n');
 
@@ -403,17 +464,29 @@ function render() {
         <div class="skill-usage">/${esc(skill.name)}</div>
         <div class="skill-path">${esc(skill.path)}</div>
         ${preview ? `<div class="skill-preview">${esc(preview)}</div>` : ''}
-        <div class="skill-actions">
-          <button class="btn" onclick="viewSkill('${esc(skill.name)}', ${isOrphan})">&#128065; View</button>
-          <button class="btn" onclick="editSkill('${esc(skill.name)}', ${isOrphan})">&#9998; Edit</button>
-          ${isOrphan ? `<button class="btn btn-green" onclick="registerOrphan('${esc(skill.name)}')">+ Register</button>` : ''}
-          <button class="btn btn-danger" onclick="deleteSkill('${esc(skill.name)}')">&#128465; Delete</button>
+        <div class="skill-actions" data-name="${esc(skill.name)}" data-orphan="${isOrphan}">
+          <button class="btn btn-view">&#128065; View</button>
+          <button class="btn btn-edit">&#9998; Edit</button>
+          ${isOrphan ? `<button class="btn btn-green btn-register">+ Register</button>` : `<button class="btn btn-orange btn-unregister">&#8722; Unregister</button>`}
+          <button class="btn btn-danger btn-del">&#128465; Delete</button>
         </div>
       </div>`;
   }
 
   html += '</div>';
   container.innerHTML = html;
+
+  // Wire up buttons via data attributes (avoids inline onclick escaping issues)
+  container.querySelectorAll('.skill-actions').forEach(actions => {
+    const name = actions.dataset.name;
+    const isOrphan = actions.dataset.orphan === 'true';
+    const btn = (sel) => actions.querySelector(sel);
+    btn('.btn-view')?.addEventListener('click', () => viewSkill(name, isOrphan));
+    btn('.btn-edit')?.addEventListener('click', () => editSkill(name, isOrphan));
+    btn('.btn-register')?.addEventListener('click', () => registerOrphan(name));
+    btn('.btn-unregister')?.addEventListener('click', () => unregisterSkill(name));
+    btn('.btn-del')?.addEventListener('click', () => deleteSkill(name));
+  });
 }
 
 function openAddModal() {
@@ -473,6 +546,23 @@ async function registerOrphan(name) {
     if (result.error) { toast(result.error, true); return; }
     toast(`Registered "${name}" in settings.json`);
     init(); // reload
+  } catch (e) {
+    toast('Failed: ' + e.message, true);
+  }
+}
+
+async function unregisterSkill(name) {
+  if (!confirm(`Unregister "${name}"? This removes it from settings.json but keeps the .md file.`)) return;
+  try {
+    const resp = await fetch(API_BASE + '/api/skills/unregister', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const result = await resp.json();
+    if (result.error) { toast(result.error, true); return; }
+    toast(`"${name}" unregistered — file kept on disk`);
+    init();
   } catch (e) {
     toast('Failed: ' + e.message, true);
   }
@@ -554,8 +644,9 @@ document.getElementById('deleteModal').addEventListener('click', e => { if (e.ta
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeEditModal(); closeDeleteModal(); }
+  if (e.key === 'Escape') { closeEditModal(); closeDeleteModal(); document.getElementById('searchInput').blur(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); openAddModal(); }
+  if (e.key === '/' && !e.target.closest('input, textarea')) { e.preventDefault(); document.getElementById('searchInput').focus(); }
 });
 
 init();
